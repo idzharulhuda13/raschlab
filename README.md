@@ -18,6 +18,13 @@ source .venv/bin/activate
 uv pip install numpy openpyxl pytest
 ```
 
+Or install it as a package, which gives you the `raschlab` console script and works from any directory:
+
+```bash
+uv pip install -e .          # or: uv pip install -e ".[dev]" for pytest
+raschlab analyze-all --dir /path/with/control/files --out /tmp/raschlab_out
+```
+
 Runtime dependencies are only `numpy` (estimation, fit statistics) and `openpyxl` (XLSX output); `pytest` is for
 the test suite.
 
@@ -111,16 +118,18 @@ deviations* above): the exact-match convention, the person table in misfit order
 gaps are the ones listed under *Known deviations* — they are precision effects on near-extreme items and p ≈ 0.5
 boundary flips, not missing conventions.
 
-**P2 — productisation, so the team can run it without Arc**
+**P2 — closed 12 Sep 2026**
 
-4. Batch command: `analyze-all --dir <folder>` to process every subtest in a folder in one call (today that is a
-   shell loop over `analyze`).
-5. Packaging: `pyproject.toml` with a `raschlab` console entry point and pinned dependency versions, plus a
-   `pip install -e .` path, so it does not depend on `python -m` from the repo directory.
-6. XLSX polish: numeric formats so pasting into Google Sheets keeps 2 decimals on MEASURE/MNSQ/ZSTD (CSV already
-   does), plus a frozen header row.
-7. Unanchored-data validation: the compat defaults and the EXP. formula were calibrated on the anchored TBT runs.
-   Run a synthetic unanchored dataset through `compare` against Winsteps before promising parity elsewhere.
+4. Batch command: `analyze-all --dir <folder> --out <base>` processes every subtest in a folder in one call and
+   writes `<base>/<tag>/`. Verified byte-identical to looping `analyze` by hand over the six reference runs.
+5. Packaging: `pyproject.toml` (setuptools) with a `raschlab` console entry point, `numpy`/`openpyxl` bounds and a
+   `dev` extra, installable with `uv pip install -e .` — `python -m raschlab` keeps working.
+6. XLSX polish: real numeric cells with number formats (2 decimals on MEASURE/S.E./MNSQ/ZSTD/CORR./EXP., 1 on
+   OBS%/EXP%, integers on counts), frozen header rows and column widths; verified by reading the workbook back.
+7. Unanchored estimation: `tests/regression/compare_unanchored.py` compares our anchor-free estimates against
+   the free measures implied by the golden `DISPLACE` column (15 anchored items over five runs). It gates at
+   0.10 logit; measured max difference 0.0675 logit. This is the only anchor-free evidence the reference files
+   carry — a full unanchored Winsteps run is still needed before claiming parity on completely unanchored data.
 
 **P3 — robustness and upkeep**
 

@@ -1,8 +1,121 @@
 import csv
 import numpy as np
 import openpyxl
+from openpyxl.utils import get_column_letter
 
 from raschlab.distractor import option_table
+
+
+# Number formats for numeric table columns, keyed by the second header-row name
+# used on the item/person ('15.1', 'person') and option ('15.3') sheets.
+NUMBER_FORMATS = {
+    "NUMBER": "0",       # ENTRY NUMBER
+    "SCORE": "0",        # TOTAL SCORE
+    "COUNT": "0",        # TOTAL COUNT / option data count
+    "VALUE": "0",        # option score value
+    "%": "0",            # option count percentage
+    "MEASURE": "0.00",   # JMLE MEASURE
+    "S.E.": "0.00",      # MODEL S.E.
+    "MNSQ": "0.00",      # INFIT/OUTFIT MNSQ
+    "ZSTD": "0.00",      # INFIT/OUTFIT ZSTD
+    "CORR.": "0.00",     # PTMEASUR-AL CORR.
+    "EXP.": "0.00",      # PTMEASUR-AL EXP.
+    "OBS%": "0.0",       # EXACT MATCH OBS%
+    "EXP%": "0.0",       # EXACT MATCH EXP%
+    "ABILITY MEAN": "0.00",
+    "ABILITY PSD": "0.00",
+    "SE MEAN": "0.00",
+    "INFT MNSQ": "0.00",
+    "OUTF MNSQ": "0.00",
+    "PTMA CORR": "0.00",
+}
+
+
+def number_format_for_header(header):
+    """Number format for a column given its second header-row label, or None."""
+    if header is None:
+        return None
+    return NUMBER_FORMATS.get(str(header).strip().upper())
+
+
+def coerce_cell(value, num_fmt):
+    """Return (cell_value, number_format) turning a display string into a number.
+
+    The row builders emit already-rounded display strings (and the CSV output
+    must keep them), so numeric columns are converted back to real numbers here
+    when the workbook is written. Non-numeric text is passed through untouched
+    and genuinely empty cells stay empty.
+    """
+    if value is None or value == "":
+        return None, num_fmt
+    if isinstance(value, bool):
+        return value, None
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        num = float(value)
+    elif isinstance(value, str):
+        try:
+            num = float(value.strip())
+        except ValueError:
+            return value, None
+    else:
+        return value, None
+    if np.isnan(num) or np.isinf(num):
+        return "", None
+    if num_fmt == "0":
+        return int(round(num)), "0"
+    return float(num), num_fmt
+
+
+def summary_value_format(value):
+    """Number format for a numeric summary VALUE cell (int -> '0', else '0.00')."""
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, np.integer)):
+        return "0"
+    if isinstance(value, (float, np.floating)):
+        return "0.00"
+    if isinstance(value, str):
+        text = value.strip()
+        try:
+            float(text)
+        except ValueError:
+            return None
+        return "0.00" if "." in text else "0"
+    return None
+
+
+def apply_column_widths(ws, header_rows, data_rows):
+    """Set column widths wide enough for the header text and the data."""
+    widths = {}
+    for row in list(header_rows) + [list(r) for r in data_rows]:
+        for i, val in enumerate(row, start=1):
+            if val is None or val == "":
+                continue
+            widths[i] = max(widths.get(i, 0), len(str(val)))
+    for i, width in widths.items():
+        ws.column_dimensions[get_column_letter(i)].width = width + 2
+
+
+def fill_sheet(ws, header_rows, data_rows, fmt_for, freeze_panes="A3"):
+    """Write header rows plus data rows, applying number formats and widths."""
+    for header_row in header_rows:
+        ws.append(list(header_row))
+    for row in data_rows:
+        ws.append(list(row))
+
+    names = header_rows[-1] if header_rows else []
+    first_data_row = len(header_rows) + 1
+    for r in range(first_data_row, ws.max_row + 1):
+        for c in range(1, ws.max_column + 1):
+            name = names[c - 1] if c - 1 < len(names) else None
+            cell = ws.cell(row=r, column=c)
+            fmt = fmt_for(name, cell.value)
+            if fmt is None:
+                continue
+            cell.value, cell.number_format = coerce_cell(cell.value, fmt)
+
+    ws.freeze_panes = freeze_panes
+    apply_column_widths(ws, header_rows, data_rows)
 
 
 # Two-row headers matching Winsteps / team sheets
@@ -625,38 +738,56 @@ def write_csv(rows, path, header_rows=None):
 def write_workbook(path, item_rows, person_rows, option_rows, summary_rows):
     """Write XLSX workbook containing sheets: '15.1', 'person', '15.3', 'summary'.
 
-    Each sheet starts with its own two-row header where applicable.
+    Each sheet starts with its own two-row header where applicable. Header rows
+    are frozen, numeric columns are written as real numbers carrying an explicit
+    number format (so decimals survive a paste into Google Sheets) and column
+    widths fit the header text. Text labels and genuinely empty cells are kept
+    as-is.
     """
     wb = openpyxl.Workbook()
     default_sheet = wb.active
 
+    def table_fmt(name, value):
+        return number_format_for_header(name)
+
+    def summary_fmt(name, value):
+        return summary_value_format(value)
+
     # Sheet 15.1 (Items)
     ws_item = wb.create_sheet(title="15.1")
-    ws_item.append(ITEM_HEADER_ROW_1)
-    ws_item.append(ITEM_HEADER_ROW_2)
-    for r in item_rows:
-        ws_item.append(list(r.values()))
+    fill_sheet(
+        ws_item,
+        [ITEM_HEADER_ROW_1, ITEM_HEADER_ROW_2],
+        [list(r.values()) for r in item_rows],
+        table_fmt,
+    )
 
     # Sheet person (Persons)
     ws_person = wb.create_sheet(title="person")
-    ws_person.append(PERSON_HEADER_ROW_1)
-    ws_person.append(PERSON_HEADER_ROW_2)
-    for r in person_rows:
-        ws_person.append(list(r.values()))
+    fill_sheet(
+        ws_person,
+        [PERSON_HEADER_ROW_1, PERSON_HEADER_ROW_2],
+        [list(r.values()) for r in person_rows],
+        table_fmt,
+    )
 
     # Sheet 15.3 (Options)
     ws_opt = wb.create_sheet(title="15.3")
-    ws_opt.append(OPTION_HEADER_ROW_1)
-    ws_opt.append(OPTION_HEADER_ROW_2)
-    for r in option_rows:
-        ws_opt.append(list(r.values()))
+    fill_sheet(
+        ws_opt,
+        [OPTION_HEADER_ROW_1, OPTION_HEADER_ROW_2],
+        [list(r.values()) for r in option_rows],
+        table_fmt,
+    )
 
-    # Sheet summary
+    # Sheet summary (two header rows: labels then a blank spacer row)
     ws_sum = wb.create_sheet(title="summary")
-    ws_sum.append(["SECTION", "STATISTIC", "VALUE"])
-    ws_sum.append(["", "", ""])
-    for trip in summary_rows:
-        ws_sum.append(list(trip))
+    fill_sheet(
+        ws_sum,
+        [["SECTION", "STATISTIC", "VALUE"], ["", "", ""]],
+        [list(trip) for trip in summary_rows],
+        summary_fmt,
+    )
 
     wb.remove(default_sheet)
     wb.save(path)
