@@ -104,6 +104,21 @@ Measured against the golden tables of all six runs (hundreds of items) on 12 Sep
   persons whose response pattern is nearly extreme (one flipped response out of twelve) and outfit MNSQ up to
   ~78 on a handful of such persons, where z² = (x−p)²/(p(1−p)) explodes as p → 1.
 
+### Known limitations
+
+Two behaviours are intentional but surprising. Both are pinned by tests in `tests/test_edge_cases_extreme.py`
+and are deliberately left as they are:
+
+- An item that nobody answered is still printed in table 15.1 with a numeric `JMLE MEASURE` (0.97 in the
+  synthetic case) that is **not** estimated from data — it is only the residue of the zero-mean centring
+  applied to the item measures on every sweep — together with `MODEL S.E.` 1000000.00 (the 1/sqrt(1e-12)
+  floor) and INFIT/OUTFIT 0.00. The item is neither flagged nor blanked, and it gets no row in the option
+  table.
+- Item and person fit statistics (INFIT/OUTFIT) are computed over the non-extreme persons only, while
+  `TOTAL COUNT` counts every observed response of every reported person, extreme persons included
+  (`fit.py` item scope). An item's `TOTAL COUNT` can therefore exceed the number of persons feeding its
+  INFIT/OUTFIT.
+
 ---
 
 ## What still needs development

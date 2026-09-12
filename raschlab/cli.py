@@ -173,6 +173,16 @@ def run_analyze(
     res_class = classify_persons(scores, counts, deleted_entries=deleted_entries)
     keep = res_class["keep"]
 
+    # A PDFILE that removes every person leaves nothing to calibrate. Stop here,
+    # before any output file is written, instead of delivering a degenerate item
+    # table with all-zero TOTAL SCOREs as if the run had succeeded.
+    if deleted_entries and int(np.sum(keep)) == 0:
+        print(
+            "Error: no persons remain after the PDFILE deletes; nothing to analyse",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
     # Estimation
     try:
         if mode == "exact":

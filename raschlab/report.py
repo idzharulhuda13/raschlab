@@ -626,6 +626,19 @@ def option_rows(*args, item_labels=None, **kwargs):
     return out
 
 
+def _round_or_blank(value, digits=2):
+    """Round a numeric summary value, or return an empty field for None.
+
+    ``None`` is the 'not estimated' marker the summary helpers return for a
+    statistic that could not be computed (e.g. no calibrated person).  It is
+    written as an empty field so the CSV matches the workbook, where
+    ``coerce_cell`` blanks such cells.
+    """
+    if value is None:
+        return ""
+    return round(float(value), digits)
+
+
 def summary_rows(item_summary, person_summary, counts_info=None):
     """Build list of (section, label, value) triples from item and person summaries.
 
@@ -665,20 +678,20 @@ def summary_rows(item_summary, person_summary, counts_info=None):
     rows.append(("ITEM MODEL S.E.", "MAX", round(float(ise.get("max", 0.0)), 2)))
     rows.append(("ITEM MODEL S.E.", "MIN", round(float(ise.get("min", 0.0)), 2)))
 
-    rows.append(("ITEM INFIT MNSQ", "MEAN", round(float(i_inf.get("mean", 0.0)), 2)))
-    rows.append(("ITEM INFIT MNSQ", "SD", round(float(i_inf.get("sd", 0.0)), 2)))
-    rows.append(("ITEM OUTFIT MNSQ", "MEAN", round(float(i_outf.get("mean", 0.0)), 2)))
-    rows.append(("ITEM OUTFIT MNSQ", "SD", round(float(i_outf.get("sd", 0.0)), 2)))
+    rows.append(("ITEM INFIT MNSQ", "MEAN", _round_or_blank(i_inf.get("mean", 0.0))))
+    rows.append(("ITEM INFIT MNSQ", "SD", _round_or_blank(i_inf.get("sd", 0.0))))
+    rows.append(("ITEM OUTFIT MNSQ", "MEAN", _round_or_blank(i_outf.get("mean", 0.0))))
+    rows.append(("ITEM OUTFIT MNSQ", "SD", _round_or_blank(i_outf.get("sd", 0.0))))
 
-    rows.append(("ITEM REAL", "RMSE", round(float(i_real.get("rmse", 0.0)), 2)))
-    rows.append(("ITEM REAL", "TRUE SD", round(float(i_real.get("true_sd", 0.0)), 2)))
-    rows.append(("ITEM REAL", "SEPARATION", round(float(i_real.get("separation", 0.0)), 2)))
-    rows.append(("ITEM REAL", "RELIABILITY", round(float(i_real.get("reliability", 0.0)), 2)))
+    rows.append(("ITEM REAL", "RMSE", _round_or_blank(i_real.get("rmse", 0.0))))
+    rows.append(("ITEM REAL", "TRUE SD", _round_or_blank(i_real.get("true_sd", 0.0))))
+    rows.append(("ITEM REAL", "SEPARATION", _round_or_blank(i_real.get("separation", 0.0))))
+    rows.append(("ITEM REAL", "RELIABILITY", _round_or_blank(i_real.get("reliability", 0.0))))
 
-    rows.append(("ITEM MODEL", "RMSE", round(float(i_mod.get("rmse", 0.0)), 2)))
-    rows.append(("ITEM MODEL", "TRUE SD", round(float(i_mod.get("true_sd", 0.0)), 2)))
-    rows.append(("ITEM MODEL", "SEPARATION", round(float(i_mod.get("separation", 0.0)), 2)))
-    rows.append(("ITEM MODEL", "RELIABILITY", round(float(i_mod.get("reliability", 0.0)), 2)))
+    rows.append(("ITEM MODEL", "RMSE", _round_or_blank(i_mod.get("rmse", 0.0))))
+    rows.append(("ITEM MODEL", "TRUE SD", _round_or_blank(i_mod.get("true_sd", 0.0))))
+    rows.append(("ITEM MODEL", "SEPARATION", _round_or_blank(i_mod.get("separation", 0.0))))
+    rows.append(("ITEM MODEL", "RELIABILITY", _round_or_blank(i_mod.get("reliability", 0.0))))
 
     # Person section
     pm = person_summary.get("measure", {})
@@ -701,23 +714,25 @@ def summary_rows(item_summary, person_summary, counts_info=None):
     rows.append(("PERSON MODEL S.E.", "MAX", round(float(pse.get("max", 0.0)), 2)))
     rows.append(("PERSON MODEL S.E.", "MIN", round(float(pse.get("min", 0.0)), 2)))
 
-    rows.append(("PERSON INFIT MNSQ", "MEAN", round(float(p_inf.get("mean", 0.0)), 2)))
-    rows.append(("PERSON INFIT MNSQ", "SD", round(float(p_inf.get("sd", 0.0)), 2)))
-    rows.append(("PERSON OUTFIT MNSQ", "MEAN", round(float(p_outf.get("mean", 0.0)), 2)))
-    rows.append(("PERSON OUTFIT MNSQ", "SD", round(float(p_outf.get("sd", 0.0)), 2)))
+    rows.append(("PERSON INFIT MNSQ", "MEAN", _round_or_blank(p_inf.get("mean", 0.0))))
+    rows.append(("PERSON INFIT MNSQ", "SD", _round_or_blank(p_inf.get("sd", 0.0))))
+    rows.append(("PERSON OUTFIT MNSQ", "MEAN", _round_or_blank(p_outf.get("mean", 0.0))))
+    rows.append(("PERSON OUTFIT MNSQ", "SD", _round_or_blank(p_outf.get("sd", 0.0))))
 
-    rows.append(("PERSON REAL", "RMSE", round(float(p_real.get("rmse", 0.0)), 2)))
-    rows.append(("PERSON REAL", "TRUE SD", round(float(p_real.get("true_sd", 0.0)), 2)))
-    rows.append(("PERSON REAL", "SEPARATION", round(float(p_real.get("separation", 0.0)), 2)))
-    rows.append(("PERSON REAL", "RELIABILITY", round(float(p_real.get("reliability", 0.0)), 2)))
+    rows.append(("PERSON REAL", "RMSE", _round_or_blank(p_real.get("rmse", 0.0))))
+    rows.append(("PERSON REAL", "TRUE SD", _round_or_blank(p_real.get("true_sd", 0.0))))
+    rows.append(("PERSON REAL", "SEPARATION", _round_or_blank(p_real.get("separation", 0.0))))
+    rows.append(("PERSON REAL", "RELIABILITY", _round_or_blank(p_real.get("reliability", 0.0))))
 
-    rows.append(("PERSON MODEL", "RMSE", round(float(p_mod.get("rmse", 0.0)), 2)))
-    rows.append(("PERSON MODEL", "TRUE SD", round(float(p_mod.get("true_sd", 0.0)), 2)))
-    rows.append(("PERSON MODEL", "SEPARATION", round(float(p_mod.get("separation", 0.0)), 2)))
-    rows.append(("PERSON MODEL", "RELIABILITY", round(float(p_mod.get("reliability", 0.0)), 2)))
+    rows.append(("PERSON MODEL", "RMSE", _round_or_blank(p_mod.get("rmse", 0.0))))
+    rows.append(("PERSON MODEL", "TRUE SD", _round_or_blank(p_mod.get("true_sd", 0.0))))
+    rows.append(("PERSON MODEL", "SEPARATION", _round_or_blank(p_mod.get("separation", 0.0))))
+    rows.append(("PERSON MODEL", "RELIABILITY", _round_or_blank(p_mod.get("reliability", 0.0))))
 
-    if "raw_score_corr" in person_summary and person_summary["raw_score_corr"] is not None:
-        rows.append(("PERSON CORR", "RAW SCORE TO MEASURE CORRELATION", round(float(person_summary["raw_score_corr"]), 2)))
+    if "raw_score_corr" in person_summary:
+        rows.append(
+            ("PERSON CORR", "RAW SCORE TO MEASURE CORRELATION", _round_or_blank(person_summary["raw_score_corr"]))
+        )
 
     # Counts section
     extreme_count = person_summary.get("n_extreme_excluded", 0)

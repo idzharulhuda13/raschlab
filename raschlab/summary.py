@@ -15,8 +15,10 @@ def raw_score_measure_corr(scores, measures, mask_persons=None):
 
     Returns
     -------
-    float
-        Pearson correlation coefficient.
+    float or None
+        Pearson correlation coefficient, or None (not estimated) when fewer
+        than two finite points are available.  None is the same marker the
+        workbook writes for it: a blank cell.
     """
     s = np.asarray(scores, dtype=float)
     m = np.asarray(measures, dtype=float)
@@ -31,7 +33,7 @@ def raw_score_measure_corr(scores, measures, mask_persons=None):
     m = m[valid]
 
     if len(s) < 2:
-        return float("nan")
+        return None
 
     std_s = np.std(s, ddof=0)
     std_m = np.std(m, ddof=0)
@@ -64,6 +66,21 @@ def separation_stats(measures, se):
     measures = np.asarray(measures, dtype=float)
     se = np.asarray(se, dtype=float)
 
+    if measures.size == 0 or se.size == 0:
+        # Nothing is calibratable, so there is no reduction to make over the
+        # empty slice: report the same 'not estimated' marker the workbook
+        # writes for it (a blank cell -> None) instead of a numpy nan, and skip
+        # np.std/np.mean entirely so their empty-slice RuntimeWarnings cannot
+        # escape.  The derived quantities keep the values a zero-variance set
+        # would produce (0.0), exactly as before.
+        return {
+            "observed_sd": None,
+            "rmse": None,
+            "true_sd": 0.0,
+            "separation": 0.0,
+            "reliability": 0.0,
+        }
+
     observed_sd = float(np.std(measures, ddof=0))
     rmse = float(np.sqrt(np.mean(np.square(se))))
     true_sd = float(np.sqrt(max(0.0, observed_sd ** 2 - rmse ** 2)))
@@ -77,6 +94,19 @@ def separation_stats(measures, se):
         "separation": separation,
         "reliability": reliability,
     }
+
+
+def _mean_sd(values):
+    """Mean and population SD of a 1-D array, or (None, None) when it is empty.
+
+    None is the 'not estimated' marker used throughout the delivered artefacts
+    (a blank cell); returning it avoids reducing an empty slice, which would
+    both produce a nan and emit a numpy RuntimeWarning.
+    """
+    arr = np.asarray(values, dtype=float)
+    if arr.size == 0:
+        return None, None
+    return float(np.mean(arr)), float(np.std(arr, ddof=0))
 
 
 def _calc_stats_block(arr):
@@ -118,18 +148,20 @@ def item_summary(item_stats, item_measures):
     model_sep = separation_stats(measures, se)
     se_real = se * np.maximum(1.0, np.sqrt(infit))
     real_sep = separation_stats(measures, se_real)
+    infit_mean, infit_sd = _mean_sd(infit)
+    outfit_mean, outfit_sd = _mean_sd(outfit)
 
     return {
         "count": len(measures),
         "measure": _calc_stats_block(measures),
         "se": _calc_stats_block(se),
         "infit_mnsq": {
-            "mean": float(np.mean(infit)),
-            "sd": float(np.std(infit, ddof=0)),
+            "mean": infit_mean,
+            "sd": infit_sd,
         },
         "outfit_mnsq": {
-            "mean": float(np.mean(outfit)),
-            "sd": float(np.std(outfit, ddof=0)),
+            "mean": outfit_mean,
+            "sd": outfit_sd,
         },
         "model": model_sep,
         "real": real_sep,
@@ -201,6 +233,8 @@ def person_summary(person_stats, person_measures, scores=None, counts=None, keep
     model_sep = separation_stats(pm, se)
     se_real = se * np.maximum(1.0, np.sqrt(infit))
     real_sep = separation_stats(pm, se_real)
+    infit_mean, infit_sd = _mean_sd(infit)
+    outfit_mean, outfit_sd = _mean_sd(outfit)
 
     corr = 0.0
     if scores_valid is not None and len(scores_valid) == len(pm):
@@ -212,12 +246,12 @@ def person_summary(person_stats, person_measures, scores=None, counts=None, keep
         "measure": _calc_stats_block(pm),
         "se": _calc_stats_block(se),
         "infit_mnsq": {
-            "mean": float(np.mean(infit)),
-            "sd": float(np.std(infit, ddof=0)),
+            "mean": infit_mean,
+            "sd": infit_sd,
         },
         "outfit_mnsq": {
-            "mean": float(np.mean(outfit)),
-            "sd": float(np.std(outfit, ddof=0)),
+            "mean": outfit_mean,
+            "sd": outfit_sd,
         },
         "raw_score_corr": corr,
         "model": model_sep,
