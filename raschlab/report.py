@@ -639,7 +639,36 @@ def _round_or_blank(value, digits=2):
     return round(float(value), digits)
 
 
-def summary_rows(item_summary, person_summary, counts_info=None):
+def _append_stat_block(rows, section, block):
+    """Append MEAN/SEM/P.SD/S.SD/MAX/MIN rows for one summary stat block.
+
+    S.SD is the sample SD (ddof=1) sitting next to P.SD (ddof=0), the row the
+    reference tool prints.  Callers that hand a legacy block without 'ssd' fall
+    back to P.SD so the row is still written.
+    """
+    rows.append((section, "MEAN", _round_or_blank(block.get("mean", 0.0))))
+    rows.append((section, "SEM", _round_or_blank(block.get("sem", 0.0))))
+    rows.append((section, "P.SD", _round_or_blank(block.get("psd", 0.0))))
+    rows.append((section, "S.SD", _round_or_blank(block.get("ssd", block.get("psd", 0.0)))))
+    rows.append((section, "MAX", _round_or_blank(block.get("max", 0.0))))
+    rows.append((section, "MIN", _round_or_blank(block.get("min", 0.0))))
+
+
+def _append_separation_blocks(rows, prefix, stats):
+    """Append the REAL and MODEL RMSE/TRUE SD/SEPARATION/RELIABILITY rows."""
+    real = stats.get("real", {})
+    model = stats.get("model", {})
+    rows.append((f"{prefix} REAL", "RMSE", _round_or_blank(real.get("rmse", 0.0))))
+    rows.append((f"{prefix} REAL", "TRUE SD", _round_or_blank(real.get("true_sd", 0.0))))
+    rows.append((f"{prefix} REAL", "SEPARATION", _round_or_blank(real.get("separation", 0.0))))
+    rows.append((f"{prefix} REAL", "RELIABILITY", _round_or_blank(real.get("reliability", 0.0))))
+    rows.append((f"{prefix} MODEL", "RMSE", _round_or_blank(model.get("rmse", 0.0))))
+    rows.append((f"{prefix} MODEL", "TRUE SD", _round_or_blank(model.get("true_sd", 0.0))))
+    rows.append((f"{prefix} MODEL", "SEPARATION", _round_or_blank(model.get("separation", 0.0))))
+    rows.append((f"{prefix} MODEL", "RELIABILITY", _round_or_blank(model.get("reliability", 0.0))))
+
+
+def summary_rows(item_summary, person_summary, counts_info=None, extreme_summary=None):
     """Build list of (section, label, value) triples from item and person summaries.
 
     Parameters
@@ -650,6 +679,10 @@ def summary_rows(item_summary, person_summary, counts_info=None):
         Output from raschlab.summary.person_summary.
     counts_info : dict, optional
         Counts for deleted, lacking, extreme_min, extreme_max.
+    extreme_summary : dict, optional
+        Output from raschlab.summary.person_summary_extreme_incl.  When given,
+        the "extreme and non-extreme" person section is emitted after the
+        non-extreme person section.
 
     Returns
     -------
@@ -662,76 +695,57 @@ def summary_rows(item_summary, person_summary, counts_info=None):
     ise = item_summary.get("se", {})
     i_inf = item_summary.get("infit_mnsq", {})
     i_outf = item_summary.get("outfit_mnsq", {})
-    i_real = item_summary.get("real", {})
-    i_mod = item_summary.get("model", {})
 
     rows.append(("ITEM", "COUNT", item_summary.get("count", 0)))
-    rows.append(("ITEM MEASURE", "MEAN", round(float(im.get("mean", 0.0)), 2)))
-    rows.append(("ITEM MEASURE", "SEM", round(float(im.get("sem", 0.0)), 2)))
-    rows.append(("ITEM MEASURE", "P.SD", round(float(im.get("psd", 0.0)), 2)))
-    rows.append(("ITEM MEASURE", "MAX", round(float(im.get("max", 0.0)), 2)))
-    rows.append(("ITEM MEASURE", "MIN", round(float(im.get("min", 0.0)), 2)))
-
-    rows.append(("ITEM MODEL S.E.", "MEAN", round(float(ise.get("mean", 0.0)), 2)))
-    rows.append(("ITEM MODEL S.E.", "SEM", round(float(ise.get("sem", 0.0)), 2)))
-    rows.append(("ITEM MODEL S.E.", "P.SD", round(float(ise.get("psd", 0.0)), 2)))
-    rows.append(("ITEM MODEL S.E.", "MAX", round(float(ise.get("max", 0.0)), 2)))
-    rows.append(("ITEM MODEL S.E.", "MIN", round(float(ise.get("min", 0.0)), 2)))
+    _append_stat_block(rows, "ITEM MEASURE", im)
+    _append_stat_block(rows, "ITEM MODEL S.E.", ise)
 
     rows.append(("ITEM INFIT MNSQ", "MEAN", _round_or_blank(i_inf.get("mean", 0.0))))
     rows.append(("ITEM INFIT MNSQ", "SD", _round_or_blank(i_inf.get("sd", 0.0))))
     rows.append(("ITEM OUTFIT MNSQ", "MEAN", _round_or_blank(i_outf.get("mean", 0.0))))
     rows.append(("ITEM OUTFIT MNSQ", "SD", _round_or_blank(i_outf.get("sd", 0.0))))
 
-    rows.append(("ITEM REAL", "RMSE", _round_or_blank(i_real.get("rmse", 0.0))))
-    rows.append(("ITEM REAL", "TRUE SD", _round_or_blank(i_real.get("true_sd", 0.0))))
-    rows.append(("ITEM REAL", "SEPARATION", _round_or_blank(i_real.get("separation", 0.0))))
-    rows.append(("ITEM REAL", "RELIABILITY", _round_or_blank(i_real.get("reliability", 0.0))))
+    _append_separation_blocks(rows, "ITEM", item_summary)
 
-    rows.append(("ITEM MODEL", "RMSE", _round_or_blank(i_mod.get("rmse", 0.0))))
-    rows.append(("ITEM MODEL", "TRUE SD", _round_or_blank(i_mod.get("true_sd", 0.0))))
-    rows.append(("ITEM MODEL", "SEPARATION", _round_or_blank(i_mod.get("separation", 0.0))))
-    rows.append(("ITEM MODEL", "RELIABILITY", _round_or_blank(i_mod.get("reliability", 0.0))))
+    if "raw_score_corr" in item_summary:
+        rows.append(
+            ("ITEM CORR", "RAW SCORE TO MEASURE CORRELATION", _round_or_blank(item_summary["raw_score_corr"]))
+        )
 
     # Person section
     pm = person_summary.get("measure", {})
     pse = person_summary.get("se", {})
     p_inf = person_summary.get("infit_mnsq", {})
     p_outf = person_summary.get("outfit_mnsq", {})
-    p_real = person_summary.get("real", {})
-    p_mod = person_summary.get("model", {})
 
     rows.append(("PERSON", "COUNT", person_summary.get("count", 0)))
-    rows.append(("PERSON MEASURE", "MEAN", round(float(pm.get("mean", 0.0)), 2)))
-    rows.append(("PERSON MEASURE", "SEM", round(float(pm.get("sem", 0.0)), 2)))
-    rows.append(("PERSON MEASURE", "P.SD", round(float(pm.get("psd", 0.0)), 2)))
-    rows.append(("PERSON MEASURE", "MAX", round(float(pm.get("max", 0.0)), 2)))
-    rows.append(("PERSON MEASURE", "MIN", round(float(pm.get("min", 0.0)), 2)))
-
-    rows.append(("PERSON MODEL S.E.", "MEAN", round(float(pse.get("mean", 0.0)), 2)))
-    rows.append(("PERSON MODEL S.E.", "SEM", round(float(pse.get("sem", 0.0)), 2)))
-    rows.append(("PERSON MODEL S.E.", "P.SD", round(float(pse.get("psd", 0.0)), 2)))
-    rows.append(("PERSON MODEL S.E.", "MAX", round(float(pse.get("max", 0.0)), 2)))
-    rows.append(("PERSON MODEL S.E.", "MIN", round(float(pse.get("min", 0.0)), 2)))
+    _append_stat_block(rows, "PERSON MEASURE", pm)
+    _append_stat_block(rows, "PERSON MODEL S.E.", pse)
 
     rows.append(("PERSON INFIT MNSQ", "MEAN", _round_or_blank(p_inf.get("mean", 0.0))))
     rows.append(("PERSON INFIT MNSQ", "SD", _round_or_blank(p_inf.get("sd", 0.0))))
     rows.append(("PERSON OUTFIT MNSQ", "MEAN", _round_or_blank(p_outf.get("mean", 0.0))))
     rows.append(("PERSON OUTFIT MNSQ", "SD", _round_or_blank(p_outf.get("sd", 0.0))))
 
-    rows.append(("PERSON REAL", "RMSE", _round_or_blank(p_real.get("rmse", 0.0))))
-    rows.append(("PERSON REAL", "TRUE SD", _round_or_blank(p_real.get("true_sd", 0.0))))
-    rows.append(("PERSON REAL", "SEPARATION", _round_or_blank(p_real.get("separation", 0.0))))
-    rows.append(("PERSON REAL", "RELIABILITY", _round_or_blank(p_real.get("reliability", 0.0))))
-
-    rows.append(("PERSON MODEL", "RMSE", _round_or_blank(p_mod.get("rmse", 0.0))))
-    rows.append(("PERSON MODEL", "TRUE SD", _round_or_blank(p_mod.get("true_sd", 0.0))))
-    rows.append(("PERSON MODEL", "SEPARATION", _round_or_blank(p_mod.get("separation", 0.0))))
-    rows.append(("PERSON MODEL", "RELIABILITY", _round_or_blank(p_mod.get("reliability", 0.0))))
+    _append_separation_blocks(rows, "PERSON", person_summary)
 
     if "raw_score_corr" in person_summary:
         rows.append(
             ("PERSON CORR", "RAW SCORE TO MEASURE CORRELATION", _round_or_blank(person_summary["raw_score_corr"]))
+        )
+
+    # Extreme-and-non-extreme person section: same population as PERSON above
+    # plus the extreme scores, with their EXTRSCORE measures.  Its INFIT/OUTFIT
+    # columns are empty by design, so no fit rows are emitted here.
+    if extreme_summary is not None:
+        rows.append(("PERSON EXTREME INCL", "COUNT", extreme_summary.get("count", 0)))
+        _append_stat_block(rows, "PERSON EXTREME INCL SCORE", extreme_summary.get("score", {}))
+        _append_stat_block(rows, "PERSON EXTREME INCL COUNT", extreme_summary.get("counts", {}))
+        _append_stat_block(rows, "PERSON EXTREME INCL MEASURE", extreme_summary.get("measure", {}))
+        _append_stat_block(rows, "PERSON EXTREME INCL MODEL S.E.", extreme_summary.get("se", {}))
+        _append_separation_blocks(rows, "PERSON EXTREME INCL", extreme_summary)
+        rows.append(
+            ("PERSON EXTREME INCL", "S.E. OF PERSON MEAN", _round_or_blank(extreme_summary.get("se_mean", 0.0)))
         )
 
     # Counts section

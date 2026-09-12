@@ -15,7 +15,7 @@ from raschlab.conventions import read_person_deletes, classify_persons
 from raschlab.estimate import prox, jmle
 from raschlab.compat import estimate_compat
 from raschlab.fit import fit_stats
-from raschlab.summary import item_summary, person_summary
+from raschlab.summary import item_summary, person_summary, person_summary_extreme_incl
 from raschlab.suggest import suggest_by_fit
 from raschlab.report import (
     item_table_rows,
@@ -206,16 +206,31 @@ def run_analyze(
         print(f"Error calculating fit stats: {e}", file=sys.stderr)
         sys.exit(2)
 
+    # Item raw scores over the calibration set (the TOTAL SCORE column of the
+    # item table); the item raw-score-to-measure correlation is computed from
+    # them.
+    item_scope = np.asarray(keep, dtype=bool) if keep is not None else np.ones(x.shape[0], dtype=bool)
+    item_raw_scores = np.sum(np.where(item_scope[:, None] & mask, x, 0.0), axis=0)
+
     # Summary
-    isum = item_summary(fit["item"], d)
+    isum = item_summary(fit["item"], d, scores=item_raw_scores)
     psum = person_summary(fit["person"], b, scores=scores, counts=counts, keep=keep)
+    psum_ext = person_summary_extreme_incl(
+        b,
+        scores,
+        counts,
+        keep=keep,
+        mask=mask,
+        item_measures=d,
+        responses=x,
+    )
     counts_info = {
         "lacking": int(np.sum(res_class["lacking"])),
         "deleted": int(np.sum(res_class["deleted"])),
         "extreme_min": int(np.sum(res_class["extreme_min"])),
         "extreme_max": int(np.sum(res_class["extreme_max"])),
     }
-    s_rows = summary_rows(isum, psum, counts_info=counts_info)
+    s_rows = summary_rows(isum, psum, counts_info=counts_info, extreme_summary=psum_ext)
 
     # Generate table rows
     i_rows = item_table_rows(x, mask, key, d, fit["item"], keep=keep, person_measures=b, digits=digits)

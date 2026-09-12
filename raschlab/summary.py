@@ -1,5 +1,7 @@
 import numpy as np
 
+from raschlab.fit import extreme_measures
+
 
 def raw_score_measure_corr(scores, measures, mask_persons=None):
     """Compute Pearson correlation between raw scores and person measures.
@@ -113,18 +115,23 @@ def _calc_stats_block(arr):
     arr = np.asarray(arr, dtype=float)
     n = len(arr)
     if n == 0:
-        return {"mean": 0.0, "sem": 0.0, "psd": 0.0, "max": 0.0, "min": 0.0}
+        return {"mean": 0.0, "sem": 0.0, "psd": 0.0, "ssd": 0.0, "max": 0.0, "min": 0.0}
     psd = float(np.std(arr, ddof=0))
+    # Sample SD: ddof=1, the row the reference tool prints next to P.SD.  A
+    # single value has no sample spread, so it falls back to 0.0 rather than a
+    # numpy ddof=1 nan.
+    ssd = float(np.std(arr, ddof=1)) if n > 1 else 0.0
     return {
         "mean": float(np.mean(arr)),
         "sem": float(psd / np.sqrt(n)) if n > 0 else 0.0,
         "psd": psd,
+        "ssd": ssd,
         "max": float(np.max(arr)),
         "min": float(np.min(arr)),
     }
 
 
-def item_summary(item_stats, item_measures):
+def item_summary(item_stats, item_measures, scores=None):
     """Compute summary statistics for items matching Winsteps format.
 
     Parameters
@@ -133,6 +140,11 @@ def item_summary(item_stats, item_measures):
         Dict with keys 'infit_mnsq', 'outfit_mnsq', 'se'.
     item_measures : array-like
         Item measures (logits).
+    scores : array-like, optional
+        Item raw scores (the TOTAL SCORE column).  When given, the item
+        raw-score-to-measure correlation is computed and returned under
+        'raw_score_corr', the same statistic the reference tool prints for the
+        item section.
 
     Returns
     -------
@@ -151,7 +163,7 @@ def item_summary(item_stats, item_measures):
     infit_mean, infit_sd = _mean_sd(infit)
     outfit_mean, outfit_sd = _mean_sd(outfit)
 
-    return {
+    result = {
         "count": len(measures),
         "measure": _calc_stats_block(measures),
         "se": _calc_stats_block(se),
@@ -165,6 +177,106 @@ def item_summary(item_stats, item_measures):
         },
         "model": model_sep,
         "real": real_sep,
+    }
+
+    if scores is not None:
+        result["raw_score_corr"] = raw_score_measure_corr(scores, measures)
+
+    return result
+
+
+def person_summary_extreme_incl(
+    person_measures,
+    scores,
+    counts,
+    keep=None,
+    mask=None,
+    item_measures=None,
+    responses=None,
+):
+    """Summary statistics over every reported person, extreme scores included.
+
+    This is the reference tool's "SUMMARY OF N MEASURED (EXTREME AND
+    NON-EXTREME) PERSON" block.  Non-extreme persons contribute their estimated
+    measure; extreme persons (zero or perfect raw score over their answered
+    items) contribute the finite measure implied by the documented EXTRSCORE
+    convention: the score used for estimation is
+    ``max(min(observed, max_possible - EXTRSCORE), min_possible + EXTRSCORE)``
+    with EXTRSCORE = 0.3, solved by bisection over the items that person
+    answered.  Fit-based columns stay empty in this block by design; MODEL S.E.
+    is always reported.
+
+    Parameters
+    ----------
+    person_measures : array-like of shape (P,)
+        Person ability measures (logits), extremes as estimated by the caller.
+    scores : array-like of shape (P,)
+        Person raw scores.
+    counts : array-like of shape (P,)
+        Valid response count per person.
+    keep : array-like of bool of shape (P,), optional
+        Reported persons (the population of this summary).
+    mask : array-like of bool of shape (P, I), optional
+        Boolean validity mask of the responses.
+    item_measures : array-like of shape (I,), optional
+        Item difficulty calibrations, used with `mask`/`responses` for the
+        extreme-person measures and for the model standard errors.
+    responses : array-like of shape (P, I), optional
+        Scored response matrix, used for the REAL S.E. inflation.
+
+    Returns
+    -------
+    dict
+        'count', 'score', 'counts', 'measure', 'se' stat blocks (each with
+        MEAN/SEM/P.SD/S.SD/MAX/MIN), 'model', 'real' separation blocks, and
+        'se_mean' (S.E. of the person mean).
+    """
+    pm = np.asarray(person_measures, dtype=float)
+    sc = np.asarray(scores, dtype=float)
+    ct = np.asarray(counts, dtype=float)
+    d = np.asarray(item_measures, dtype=float)
+    mk = np.asarray(mask, dtype=bool)
+    x = np.asarray(responses, dtype=float)
+
+    if keep is not None:
+        kp = np.asarray(keep, dtype=bool)
+    else:
+        kp = np.ones(pm.shape[0], dtype=bool)
+
+    is_extreme = (ct == 0) | (sc == 0) | (sc == ct)
+    pm_all = np.where(is_extreme, extreme_measures(mk, d, sc), pm)
+
+    b = pm_all[kp]
+    m = mk[kp]
+    s = sc[kp]
+    c = ct[kp]
+    xk = x[kp]
+
+    diff = np.clip(b[:, None] - d[None, :], -30.0, 30.0)
+    P = 1.0 / (1.0 + np.exp(-diff))
+    W = np.maximum(P * (1.0 - P), 1e-12)
+    sum_W = np.maximum(np.sum(np.where(m, W, 0.0), axis=1), 1e-12)
+    se = 1.0 / np.sqrt(sum_W)
+
+    # REAL S.E. inflates the model S.E. by sqrt(INFIT MNSQ), floored at 1.  The
+    # fit statistics of this population are not delivered, so they are
+    # recomputed here from the same residuals fit_stats uses; for an extreme
+    # person the inflation is always 1.
+    z2 = np.where(m, ((xk - P) / np.sqrt(W)) ** 2, 0.0)
+    infit = np.sum(np.where(m, z2 * W, 0.0), axis=1) / sum_W
+    real_se = se * np.maximum(1.0, np.sqrt(infit))
+
+    measure_block = _calc_stats_block(b)
+
+    return {
+        "count": int(np.sum(kp)),
+        "score": _calc_stats_block(s),
+        "counts": _calc_stats_block(c),
+        "measure": measure_block,
+        "se": _calc_stats_block(se),
+        "model": separation_stats(b, se),
+        "real": separation_stats(b, real_se),
+        "se_mean": measure_block["sem"],
     }
 
 
@@ -270,8 +382,8 @@ def format_summary_text(summary, label="ITEM"):
 
     lines = [
         f"SUMMARY OF {summary['count']} {label}S",
-        f"MEASURE: MEAN {m['mean']:7.2f}  SEM {m['sem']:7.2f}  P.SD {m['psd']:7.2f}  MAX {m['max']:7.2f}  MIN {m['min']:7.2f}",
-        f"MODEL S.E.: MEAN {s['mean']:7.2f}  SEM {s['sem']:7.2f}  P.SD {s['psd']:7.2f}  MAX {s['max']:7.2f}  MIN {s['min']:7.2f}",
+        f"MEASURE: MEAN {m['mean']:7.2f}  SEM {m['sem']:7.2f}  P.SD {m['psd']:7.2f}  S.SD {m.get('ssd', m['psd']):7.2f}  MAX {m['max']:7.2f}  MIN {m['min']:7.2f}",
+        f"MODEL S.E.: MEAN {s['mean']:7.2f}  SEM {s['sem']:7.2f}  P.SD {s['psd']:7.2f}  S.SD {s.get('ssd', s['psd']):7.2f}  MAX {s['max']:7.2f}  MIN {s['min']:7.2f}",
         f"INFIT MNSQ: MEAN {inf['mean']:7.2f}  SD {inf['sd']:7.2f}",
         f"OUTFIT MNSQ: MEAN {outf['mean']:7.2f}  SD {outf['sd']:7.2f}",
         f"REAL  RMSE {real['rmse']:7.2f}  TRUE SD {real['true_sd']:7.2f}  SEPARATION {real['separation']:7.2f}  RELIABILITY {real['reliability']:7.2f}",
