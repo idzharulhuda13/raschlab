@@ -131,17 +131,20 @@ boundary flips, not missing conventions.
    0.10 logit; measured max difference 0.0675 logit. This is the only anchor-free evidence the reference files
    carry — a full unanchored Winsteps run is still needed before claiming parity on completely unanchored data.
 
-**P3 — robustness and upkeep**
+**P3 — closed 12 Sep 2026 except item 10**
 
-8. Cross-platform/legacy control files: `MISSCORE=`, alternative `CODES=`, and Windows-style `DATA=`/`ILABEL=`
-   paths are handled defensively but only exercised by the TBT files — add fixtures for the variants the team
-   actually exports.
-9. CI: a GitHub Actions workflow running `pytest` (without the reference data) on every push, so the suite never
-   silently rots.
+8. Cross-platform/legacy control files: covered by committed fixtures under `tests/fixtures/` (Windows-style
+   `DATA=`/`ILABEL=`, `MISSCORE=`, reordered `CODES=`, quoted paths, a control file with no path entries) and
+   `tests/test_control_variants.py`. The Windows-path variant was also run end to end: its `item_table_15.1.csv`
+   is byte-identical to the canonical `verbal` output.
+9. CI: `.github/workflows/ci.yml` runs `python -m pytest tests -q` on push and pull request across Python
+   3.10/3.11/3.12 with `pip install -e ".[dev]"`; the reference data is absent there, so the data-dependent
+   tests skip (49 pass, 5 skip).
 10. More synthetic tests: missing-response patterns, all-extreme person sets, single-category items, zero
-    variance guards.
-11. Faster fit statistics: the EXP. and `MISSING ***` computations loop per item/person in Python; fine at about two thousand ×
-    147 (about 1 second per run) but replace with vectorised algebra before using it on much larger matrices.
+    variance guards. Still open.
+11. Faster fit statistics: the per-row Python loops in `fit.py`, `report.py` and `distractor.py` are vectorised.
+    All six reference runs are byte-identical to the previous outputs and the parity harness stays green;
+    end-to-end batch time went from 4.75 s to 2.07 s (kuantitatif 0.98 s → 0.45 s).
 
 **Out of scope for now**
 

@@ -421,6 +421,53 @@ def person_table_rows(
 
     d = np.asarray(item_measures, dtype=float) if item_measures is not None else None
 
+    # Vectorised per-person statistics: CORR., OBS% and EXP% are computed for every
+    # valid person at once (same formulas, same per-person values) instead of one
+    # Python pass with numpy calls per person.
+    n_valid = len(valid_indices)
+    corr_person = np.zeros(n_valid, dtype=float)
+    obs_pct_person = np.zeros(n_valid, dtype=float)
+    exp_pct_person = np.zeros(n_valid, dtype=float)
+    exp_person = np.zeros(n_valid, dtype=float)
+    if d is not None and n_valid > 0:
+        mask_v = mask[valid_indices]
+        X_v = X[valid_indices]
+        pm_v = pm[valid_indices]
+        n_i = np.sum(mask_v, axis=1).astype(float)
+        n_i_safe = np.maximum(n_i, 1.0)
+
+        x_masked = np.where(mask_v, X_v, 0.0)
+        d_masked = np.where(mask_v, d[None, :], 0.0)
+        x_bar = np.sum(x_masked, axis=1) / n_i_safe
+        d_bar = np.sum(d_masked, axis=1) / n_i_safe
+        sd_x = np.sqrt(np.maximum(np.sum(x_masked * x_masked, axis=1) / n_i_safe - x_bar * x_bar, 0.0))
+        sd_d = np.sqrt(np.maximum(np.sum(d_masked * d_masked, axis=1) / n_i_safe - d_bar * d_bar, 0.0))
+
+        diff_p = np.clip(pm_v[:, None] - d[None, :], -30.0, 30.0)
+        P_v = 1.0 / (1.0 + np.exp(-diff_p))
+        P_masked = np.where(mask_v, P_v, 0.0)
+        P_bar = np.sum(P_masked, axis=1) / n_i_safe
+
+        # Correlation with item easiness (-d), as before
+        cov_xd = np.sum(x_masked * d_masked, axis=1) / n_i_safe - x_bar * d_bar
+        denom_corr = sd_x * sd_d
+        ok_corr = (n_i > 1) & (sd_x > 1e-12) & (sd_d > 1e-12)
+        corr_person = np.where(ok_corr, -cov_xd / np.where(ok_corr, denom_corr, 1.0), 0.0)
+
+        # Expected point-measure correlation fallback
+        num_exp = np.sum(d_masked * P_masked, axis=1) / n_i_safe - d_bar * P_bar
+        conv = np.sqrt(np.maximum(P_bar * (1.0 - P_bar), 0.0))
+        denom_exp = sd_d * conv
+        ok_exp = (n_i > 0) & (denom_exp > 1e-12)
+        exp_person = np.where(ok_exp, -num_exp / np.where(ok_exp, denom_exp, 1.0), 0.0)
+
+        # Exact match percentages: OBS% and EXP%
+        match = mask_v & (X_v == (P_v >= 0.5))
+        obs_pct_person = 100.0 * (np.sum(match, axis=1) / n_i_safe)
+        exp_pct_person = 100.0 * (
+            np.sum(np.where(mask_v, np.maximum(P_v, 1.0 - P_v), 0.0), axis=1) / n_i_safe
+        )
+
     rows = TableRowList(n_extreme_excluded=n_extreme)
     for p_idx, i in enumerate(valid_indices):
         entry = i + 1
@@ -435,38 +482,17 @@ def person_table_rows(
 
         # Correlation and match percentages across answered items
         if d is not None:
-            items_i = np.where(mask[i])[0]
-            x_i = X[i, items_i]
-            d_i = d[items_i]
-            if len(x_i) > 1 and np.std(x_i, ddof=0) > 1e-12 and np.std(d_i, ddof=0) > 1e-12:
-                # In Winsteps, person PTMEASUR-AL CORR is correlation with item easiness (-d)
-                corr_val = float(np.corrcoef(x_i, -d_i)[0, 1])
-            else:
-                corr_val = 0.0
+            corr_val = float(corr_person[p_idx])
 
             # Expected point-measure correlation (EXP.)
             if fit_person is not None and "exp" in fit_person and fit_person["exp"] is not None:
                 exp_val = float(fit_person["exp"][p_idx])
-            elif len(d_i) > 0:
-                diff = pm[i] - d_i
-                P_i = 1.0 / (1.0 + np.exp(-np.clip(diff, -30.0, 30.0)))
-                d_bar = np.mean(d_i)
-                P_bar = np.mean(P_i)
-                num = np.mean((d_i - d_bar) * (P_i - P_bar))
-                conv = np.sqrt(P_bar * (1.0 - P_bar))
-                sd_d = np.std(d_i, ddof=0)
-                denom = sd_d * conv
-                exp_val = float(-num / denom) if denom > 1e-12 else 0.0
             else:
-                exp_val = 0.0
+                exp_val = float(exp_person[p_idx])
             exp_corr = _fmt(exp_val, 2)
 
-            diff = pm[i] - d_i
-            P_i = 1.0 / (1.0 + np.exp(-np.clip(diff, -30.0, 30.0)))
-            expected_resp = (P_i >= 0.5).astype(float)
-            obs_match = (x_i == expected_resp)
-            obs_pct = float(np.mean(obs_match) * 100)
-            exp_pct = float(np.mean(np.maximum(P_i, 1.0 - P_i)) * 100)
+            obs_pct = float(obs_pct_person[p_idx])
+            exp_pct = float(exp_pct_person[p_idx])
         else:
             corr_val = 0.0
             exp_corr = _fmt(0.0, 2)

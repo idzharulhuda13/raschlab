@@ -27,6 +27,24 @@ def solve_pseudo_difficulty(b, target_count, max_iter=100, tol=1e-10):
     return float(np.clip(d, -10.0, 10.0))
 
 
+def _code_matrix(rows, I, P):
+    """Response codes as an int code-point matrix of shape (P, I).
+
+    Built with a single bytes pass when every row is single-byte encoded; falls back
+    to a per-character build otherwise. Values are identical to indexing rows[i][j].
+    """
+    if P == 0:
+        return np.zeros((0, I), dtype=np.int32)
+    padded = [str(r)[:I].ljust(I) for r in rows]
+    try:
+        blob = "".join(padded).encode("ascii")
+    except UnicodeEncodeError:
+        blob = None
+    if blob is not None and len(blob) == P * I:
+        return np.frombuffer(blob, dtype=np.uint8).reshape(P, I).astype(np.int32)
+    return np.array([[ord(ch) for ch in s] for s in padded], dtype=np.int32)
+
+
 def option_table(
     X,
     mask,
@@ -135,10 +153,22 @@ def option_table(
 
     out_rows = []
 
+    # Response codes as an integer code-point matrix: one vectorised comparison per
+    # item instead of a Python scan of every person's row for every option.
+    codes_all = _code_matrix(rows, I, P)
+    keep_idx = np.where(keep_mask)[0]
+
+    def _is_code(col, code):
+        """Elementwise comparison of a column of code points with a response code."""
+        if isinstance(code, str) and len(code) == 1:
+            return col == ord(code)
+        return np.zeros(col.shape[0], dtype=bool)
+
     for j in range(I):
         item_num = j + 1
         item_label = str(item_labels[j]) if item_labels is not None and j < len(item_labels) else str(item_num)
         key_char = key[j]
+        col = codes_all[:, j]
 
         resp_mask = keep_mask & mask[:, j]
         resp_idx = np.where(resp_mask)[0]
@@ -149,7 +179,7 @@ def option_table(
         b_resp = pm[resp_idx]
 
         # Non-extreme responders for fit calculation
-        calib_idx = [i for i in resp_idx if not is_extreme[i]]
+        calib_idx = resp_idx[~is_extreme[resp_idx]]
         if len(calib_idx) == 0:
             calib_idx = resp_idx
 
@@ -157,7 +187,7 @@ def option_table(
         if item_measures is not None:
             d_j = float(item_measures[j])
         else:
-            key_cnt = sum(1 for i in calib_idx if rows[i][j] == key_char)
+            key_cnt = int(np.count_nonzero(_is_code(col[calib_idx], key_char)))
             d_j = solve_pseudo_difficulty(pm[calib_idx], key_cnt)
 
         b_cal = pm[calib_idx]
@@ -169,14 +199,14 @@ def option_table(
         denom_infit_1 = float(np.sum(P1 * P0 ** 2))
         denom_outfit_0 = float(np.sum(P1))
         denom_infit_0 = float(np.sum(P0 * P1 ** 2))
-        n_0_calib = sum(1 for i in calib_idx if rows[i][j] != key_char)
+        n_0_calib = int(np.count_nonzero(~_is_code(col[calib_idx], key_char)))
 
         # Unique response codes observed
-        item_codes = sorted(list(set(rows[i][j] for i in resp_idx)))
+        item_codes = [chr(int(c)) for c in np.unique(col[resp_idx])]
         item_rows = []
 
         for code in item_codes:
-            choosers = [i for i in resp_idx if rows[i][j] == code]
+            choosers = resp_idx[_is_code(col[resp_idx], code)]
             cnt = len(choosers)
             pct = int(round(cnt / n_valid * 100))
             is_key = (code == key_char)
@@ -188,7 +218,7 @@ def option_table(
             se_mean = float(b_psd / np.sqrt(cnt - 1)) if cnt > 1 else 0.0
 
             # Pearson correlation y vs b
-            y = np.array([1.0 if rows[i][j] == code else 0.0 for i in resp_idx])
+            y = _is_code(col[resp_idx], code).astype(float)
             std_y = np.std(y, ddof=0)
             std_b = np.std(b_resp, ddof=0)
             if std_y > 1e-12 and std_b > 1e-12:
@@ -198,7 +228,7 @@ def option_table(
                 ptma = 0.0
 
             # Infit / Outfit mean-square following Winsteps category fit
-            choosers_calib = [idx for idx, i in enumerate(calib_idx) if rows[i][j] == code]
+            choosers_calib = np.where(_is_code(col[calib_idx], code))[0]
             cnt_calib = len(choosers_calib)
 
             if val == 1:
@@ -246,7 +276,7 @@ def option_table(
         b_psd_m = float(np.std(b_miss, ddof=0)) if len(b_miss) > 0 else 0.0
         se_mean_m = float(b_psd_m / np.sqrt(miss_cnt)) if miss_cnt > 0 else 0.0
 
-        y_m = np.array([1.0 if not mask[i, j] else 0.0 for i in np.where(keep_mask)[0]])
+        y_m = (~mask[keep_idx, j]).astype(float)
         std_y_m = np.std(y_m, ddof=0)
         if std_y_m > 1e-12 and std_b_all > 1e-12:
             cov_m = np.mean((y_m - np.mean(y_m)) * (b_all - mean_b_all))
