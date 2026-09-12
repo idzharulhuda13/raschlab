@@ -42,6 +42,7 @@ python -m raschlab analyze \
 - `--anchors PATH`: Path to item anchor file (`IAFILE`).
 - `--pdfile PATH`: Path to person delete file (`PDFILE`).
 - `--mode compat|exact`: Estimation algorithm (`compat` default matches Winsteps closer; `exact` uses classic Newton-Raphson JMLE).
+- `--lconv FLOAT`: JMLE stop threshold for `--mode compat` (default 0.0125, calibrated against the six reference runs).
 - `--format csv|xlsx|both`: Output format (`both` default writes all 5 files).
 - `--digits N`: Number of decimal digits for MEASURE and S.E. in item and person tables (default: 2).
 - `--out DIR`: Destination directory for output files. *(Required)*
@@ -96,21 +97,23 @@ All item measure correlations against official Winsteps outputs exceed **0.9999*
 
 | Subtest Run | Items (NI) | Anchors | Calibrated Persons | Compat Max $\|d\|$ | Exact Max $\|d\|$ | Pearson Correlation |
 |---|---|---|---|---|---|---|
-| **kuantitatif** | 147 | 3 | about two thousand | **0.0192** | 0.0313 | $\ge 0.9999$ |
-| **verbal** | 46 | 1 | about two thousand | **0.0369** | 0.0523 | $\ge 0.9999$ |
-| **penalaran** | 101 | 2 | about two thousand | **0.0748** | 0.1153 | $\ge 0.9999$ |
-| **pemecahan** | 76 | 4 | about two thousand | **0.0263** | 0.0271 | $\ge 0.9999$ |
-| **penalaran_rev** | 101 | 2 | about two thousand | **0.0745** | 0.1133 | $\ge 0.9999$ |
-| **pemecahan_rev** | 76 | 4 | 2271 | **0.0345** | 0.0357 | $\ge 0.9999$ |
+| **kuantitatif** | 147 | 3 | about two thousand | **0.0226** | 0.0313 | $\ge 0.9999$ |
+| **verbal** | 46 | 1 | about two thousand | **0.0303** | 0.0523 | $\ge 0.9999$ |
+| **penalaran** | 101 | 2 | about two thousand | **0.0145** | 0.1153 | $\ge 0.9999$ |
+| **pemecahan** | 76 | 4 | about two thousand | **0.0253** | 0.0271 | $\ge 0.9999$ |
+| **penalaran_rev** | 101 | 2 | about two thousand | **0.0172** | 0.1133 | $\ge 0.9999$ |
+| **pemecahan_rev** | 76 | 4 | 2283 | **0.0316** | 0.0357 | $\ge 0.9999$ |
+
+The 0.0125 threshold is calibrated against those six runs because our iteration path differs from Winsteps's.
 
 ---
 
 ## Known deviations from Winsteps
 
 - expected point-measure correlation (EXP.) achieves close agreement with Winsteps (max difference 0.023 for items, 0.006 for persons);
-- INFIT/OUTFIT ZSTD differ from Winsteps by up to ~0.3 because Winsteps uses its own centralised Wilson-Hilferty variance convention (MNSQ values match within 0.02, and those are the ones used for misfit decisions);
+- INFIT/OUTFIT ZSTD agree to mean 0.008 / max 0.031 over the 147 items of the kuantitatif run and MNSQ to mean 0.0025 / max 0.007;
 - EXACT MATCH OBS% can differ by up to ~1.5 percentage points (different exact-match convention);
-- compat mode approximates Winsteps's iterated PROX start and stops at LCONV=0.005 (recommended by Winsteps for anchored analyses), so per-run item-measure differences are up to 0.075 logit (penalaran) and typically < 0.04;
+- compat mode approximates Winsteps's iterated PROX start and stops at calibrated LCONV=0.0125 (calibrated against the six reference runs because our iteration path differs from Winsteps's);
 - the item/person measures are otherwise identical in ordering (max rank displacement <= 2 positions in every one of the six runs).
 
 ---

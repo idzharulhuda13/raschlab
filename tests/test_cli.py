@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from raschlab.cli import main
+from raschlab.compat import estimate_compat
 
 
 class TestCLI(unittest.TestCase):
@@ -308,6 +309,32 @@ class TestCLI(unittest.TestCase):
             self.assertEqual(cm.exception.code, 0)
             norm_output = " ".join(mock_out.getvalue().split())
             self.assertIn("optional override; item labels are read from the data file by default", norm_output)
+
+    def test_analyze_lconv_override(self):
+        out_dir = os.path.join(self.tmpdir, "out_lconv")
+        cmd = [
+            "analyze",
+            "--con", self.con_path,
+            "--data", self.data_path,
+            "--out", out_dir,
+            "--format", "csv",
+            "--lconv", "0.005",
+        ]
+        with patch("raschlab.cli.estimate_compat", wraps=estimate_compat) as mock_compat:
+            with self.assertRaises(SystemExit) as cm:
+                main(cmd)
+            self.assertEqual(cm.exception.code, 0)
+            mock_compat.assert_called_once()
+            _, kwargs = mock_compat.call_args
+            self.assertEqual(kwargs.get("lconv"), 0.005)
+
+    def test_analyze_help_documents_lconv(self):
+        with patch("sys.stdout", new_callable=io.StringIO) as mock_out:
+            with self.assertRaises(SystemExit) as cm:
+                main(["analyze", "--help"])
+            self.assertEqual(cm.exception.code, 0)
+            norm_output = " ".join(mock_out.getvalue().split())
+            self.assertIn("JMLE stop threshold for --mode compat", norm_output)
 
 
 if __name__ == "__main__":

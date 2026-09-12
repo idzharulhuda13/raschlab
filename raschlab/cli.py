@@ -41,6 +41,7 @@ def run_analyze(
     mode="compat",
     out_format="both",
     digits=2,
+    lconv=None,
 ):
     start_time = time.time()
 
@@ -175,7 +176,7 @@ def run_analyze(
             d_prox, b_prox = prox(x, mask, anchors=anchors, keep=keep)
             res = jmle(x, mask, d_prox, b_prox, max_iter=200, tol=1e-4, anchors=anchors, keep=keep)
         else:
-            res = estimate_compat(x, mask, anchors=anchors, keep=keep)
+            res = estimate_compat(x, mask, anchors=anchors, keep=keep, lconv=lconv)
     except Exception as e:
         print(f"Error during estimation: {e}", file=sys.stderr)
         sys.exit(2)
@@ -430,6 +431,12 @@ def main(args=None):
         default=2,
         help="Number of decimal digits for MEASURE and S.E. in item and person tables (default: 2)",
     )
+    analyze_parser.add_argument(
+        "--lconv",
+        type=float,
+        default=None,
+        help="JMLE stop threshold for --mode compat (default 0.0125, calibrated against the six reference runs)",
+    )
 
     suggest_parser = subparsers.add_parser("suggest-deletes")
     suggest_parser.add_argument("--con", required=True, help="Path to control (.CON) file")
@@ -454,6 +461,7 @@ def main(args=None):
             mode=parsed.mode,
             out_format=parsed.format,
             digits=parsed.digits,
+            lconv=parsed.lconv,
         )
         sys.exit(0)
     elif parsed.command == "suggest-deletes":

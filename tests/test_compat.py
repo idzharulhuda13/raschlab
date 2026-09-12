@@ -49,6 +49,28 @@ class TestCompat(unittest.TestCase):
         self.assertAlmostEqual(float(res["item_measures"][0]), 1.25, places=10)
         self.assertAlmostEqual(float(res["item_measures"][9]), -0.85, places=10)
 
+    def test_compat_defaults(self):
+        import inspect
+        sig_prox = inspect.signature(prox_winsteps)
+        self.assertEqual(sig_prox.parameters["max_iter"].default, 20)
+        self.assertEqual(sig_prox.parameters["tol_var"].default, 1e-10)
+
+        X = np.array([[1, 0, 1], [1, 1, 0], [0, 1, 1], [0, 0, 1]])
+        mask = np.ones_like(X, dtype=bool)
+        res_no_anc = estimate_compat(X, mask)
+        self.assertLessEqual(res_no_anc["max_change"], 0.0125)
+
+        res_anc = estimate_compat(X, mask, anchors={1: 0.5})
+        self.assertLessEqual(res_anc["max_change"], 0.0125)
+
+    def test_lconv_override(self):
+        X = np.array([[1, 0, 1], [1, 1, 0], [0, 1, 1], [0, 0, 1]])
+        mask = np.ones_like(X, dtype=bool)
+        res_loose = estimate_compat(X, mask, lconv=0.1)
+        res_tight = estimate_compat(X, mask, lconv=0.001)
+        self.assertLessEqual(res_tight["max_change"], 0.001)
+        self.assertGreaterEqual(res_tight["iterations"], res_loose["iterations"])
+
 
 if __name__ == "__main__":
     unittest.main()

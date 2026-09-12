@@ -6,7 +6,7 @@ def _logit(p):
     return np.log(p / (1.0 - p))
 
 
-def prox_winsteps(X, mask, anchors=None, max_iter=10, tol_var=1e-4):
+def prox_winsteps(X, mask, anchors=None, max_iter=20, tol_var=1e-10):
     """Cohen's PROX algorithm adapted for missing data following Winsteps documentation.
 
     Parameters
@@ -18,9 +18,9 @@ def prox_winsteps(X, mask, anchors=None, max_iter=10, tol_var=1e-4):
     anchors : dict of int -> float, optional
         1-based item index to anchored difficulty value.
     max_iter : int, optional
-        Maximum PROX iterations (default: 10).
+        Maximum PROX iterations (default: 20).
     tol_var : float, optional
-        Relative variance tolerance to cease iterations (default: 1e-4).
+        Relative variance tolerance to cease iterations (default: 1e-10).
 
     Returns
     -------
@@ -96,8 +96,7 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
     keep : array-like of shape (P,), optional
         Boolean mask of persons to keep in calibration.
     lconv : float, optional
-        Convergence threshold on maximum logit change.
-        Defaults to 0.005 if anchors is present, else 0.01.
+        Convergence threshold on maximum logit change (default: 0.0125).
     delta : float, optional
         Step size for evaluating expected scores (default: 0.1).
     max_iter : int, optional
@@ -136,7 +135,7 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
         active_persons = non_extreme
 
     if lconv is None:
-        lconv = 0.005 if anchors else 0.01
+        lconv = 0.0125
 
     mask_item = mask & active_persons[:, None]
     N_j = np.sum(mask_item, axis=0)
