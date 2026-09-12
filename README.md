@@ -49,6 +49,18 @@ the test suite.
 - `--mode exact` runs our own Newton-Raphson JMLE to the exact likelihood fixed point. Useful as a reference, but
   it sits further from Winsteps (see the parity table) because Winsteps stops iterating earlier.
 
+### Conventions matched to Winsteps (measured, not guessed)
+
+- Item fit statistics (`INFIT/OUTFIT MNSQ`, `ZSTD`), item `S.E.` and the `EXACT MATCH` columns are computed over
+  the calibration persons whose measures are finite — extreme persons (score 0 or perfect) are excluded from that
+  pass. Including them (they carry no finite measure) is what pushed MNSQ up to 25 MNSQ units before.
+- `ZSTD` is clipped at **±9.90**, as Winsteps prints it.
+- `OBS%` is the share of responses agreeing with the modal expectation (`p >= 0.5`); `EXP%` is the mean of
+  `max(p, 1-p)`.
+- Item `CORR.` and `EXP.` are computed over all reported persons, with extreme persons given a finite measure from
+  the 0.5-adjusted raw score (score 0 solves `sum_j p_ij = 0.5`, a perfect score solves `= count - 0.5`). Without
+  that fill the point-measure correlation of items whose `p` never crosses 0.5 is off by up to 0.6.
+
 ### Parity vs Winsteps 5.2.1
 
 Item-measure correlations all exceed **0.9999**; maximum absolute differences (logits) per run:
@@ -72,11 +84,18 @@ the `MISSING ***` row (count 2107 / 2109).
 
 ### Known deviations
 
-- `EXACT MATCH OBS%` can differ by up to ~1.5 percentage points (different exact-match convention).
-- `INFIT/OUTFIT ZSTD` differ by mean 0.008 / max 0.031 across the 147 kuantitatif items (Winsteps uses its own
-  centralised Wilson-Hilferty variance convention). The MNSQ values — the ones used for misfit decisions — differ
-  by mean 0.0025 / max 0.007.
-- `EXP.` agreement is mean 0.0027 / max 0.023 for items and mean 0.0025 / max 0.006 for persons.
+Measured against the golden tables of all six runs (hundreds of items) on 12 Sep 2026, worst case per column:
+
+- `MEASURE` 0.03 logit, `S.E.` 0.01, `CORR.` 0.05 (mean 0.007), `EXP.` 0.23 (mean 0.029).
+- `INFIT/OUTFIT MNSQ` 0.06 (mean 0.002) and `ZSTD` 0.89 (mean 0.017 infit / 0.068 outfit). The remaining ZSTD gap
+  sits on the near-extreme items (|measure| > 6 logits, e.g. verbal items 10/12/14/32), where the fit statistic
+  inherits the precision of the item measure. MNSQ — the number used for misfit decisions — stays inside 0.06.
+- `EXACT MATCH OBS%` up to 1.6 pp (mean 0.05 pp) on items that have several responses at p ≈ 0.5: our measure
+  differs from Winsteps in the third decimal and the modal decision flips (one response is 0.4 pp on a
+  256-response item). `EXP%` is inside 0.10 pp, and on the verbal run OBS% matches Winsteps exactly.
+- Person level (TABLE 6.1 rows): measure 0.03, MNSQ 0.04, `CORR.` 0.02; `OBS%` up to 8.4 pp on single
+  persons whose response pattern is nearly extreme (one flipped response out of twelve) and outfit MNSQ up to
+  ~78 on a handful of such persons, where z² = (x−p)²/(p(1−p)) explodes as p → 1.
 
 ---
 
@@ -84,16 +103,13 @@ the `MISSING ***` row (count 2107 / 2109).
 
 Ordered by value to the team; nothing here blocks current use.
 
-**P1 — closest gaps to Winsteps**
+**P1 — closed 12 Sep 2026**
 
-1. `EXACT MATCH OBS%` convention: currently ~1.5 pp off. Needs the exact Winsteps definition reverse-engineered
-   the same way EXP. and the `MISSING ***` row were (extract the golden column, sweep candidate formulas).
-2. Person table layout: Winsteps prints its person statistics in **misfit order** with the rank letters (A, B, C,
-   ...) in the PTMEA column (TABLE 6.1). Our `person_table.csv` is in entry order. The team's spreadsheets have no
-   person tab today, so this is a decision (add `--person-order misfit|entry`, plus an optional rank-letter
-   column) before implementing.
-3. ZSTD polish: getting the max difference under ~0.01 needs Winsteps's centralised variance convention instead of
-   the textbook `1/W - 4` form.
+The three former P1 gaps are implemented and verified against the golden tables (see *Conventions* and *Known
+deviations* above): the exact-match convention, the person table in misfit order with rank letters
+(`--person-order misfit|entry` plus the `RANK` column), and the ZSTD variance convention. The remaining known
+gaps are the ones listed under *Known deviations* — they are precision effects on near-extreme items and p ≈ 0.5
+boundary flips, not missing conventions.
 
 **P2 — productisation, so the team can run it without Arc**
 
@@ -151,11 +167,16 @@ Options:
 - `--lconv FLOAT` — JMLE stop threshold for `--mode compat` (default 0.0125).
 - `--format csv|xlsx|both` — output format (`both` default).
 - `--digits N` — decimals for MEASURE/S.E. in the item and person tables (default 2).
+- `--person-order entry|misfit` — person table order (`misfit` default: outfit MNSQ descending, the Winsteps
+  TABLE 6.1 order; `entry` keeps the data-file order). In `misfit` mode the person table gets one extra last
+  column `RANK`: `A`..`Z` on the first 26 rows and `a`..`z` on the last 26 (the most misfitting and the most
+  overfitting persons, which is where Winsteps puts its rank letters).
 - `--out DIR` — output directory. *(required)*
 
 Output files:
 - `item_table_15.1.csv` — item measures, S.E., fit, PTMEA CORR/EXP, exact match.
-- `person_table.csv` — person measures and fit (extreme persons excluded, and counted in the summary).
+- `person_table.csv` — person measures and fit (extreme persons excluded, and counted in the summary);
+  misfit order with the `RANK` letters unless `--person-order entry`.
 - `option_table_15.3.csv` — option counts, %, ability mean/P.SD/S.E. MEAN, fit, PTMA, plus the `MISSING ***` row.
 - `summary_table.csv` — item and person summary statistics.
 - `analysis_report.xlsx` — all four as sheets `15.1`, `person`, `15.3`, `summary`.

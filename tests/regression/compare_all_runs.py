@@ -1,5 +1,10 @@
+import contextlib
+import csv
+import io
+import json
 import os
 import sys
+import tempfile
 
 # Ensure repository root is on sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
@@ -12,6 +17,7 @@ from raschlab.anchors import read_anchors
 from raschlab.conventions import read_person_deletes, classify_persons
 from raschlab.estimate import prox as exact_prox, jmle as exact_jmle
 from raschlab.compat import estimate_compat
+from raschlab.cli import run_analyze
 
 
 def parse_golden_items(hasil_path):
@@ -135,9 +141,103 @@ def main():
 
     if any_exceeded:
         print("\nSummary: At least one run has compat max absolute difference > 0.05 against Winsteps golden tables.")
-        sys.exit(1)
     else:
         print("\nSummary: All runs have compat max absolute difference <= 0.05 against Winsteps golden tables.")
+
+    golden_json_path = os.path.join(os.path.dirname(__file__), "golden_items.json")
+    if not os.path.isfile(golden_json_path):
+        golden_json_path = os.path.join("tests", "regression", "golden_items.json")
+    with open(golden_json_path, "r", encoding="utf-8") as f:
+        golden_json_data = json.load(f)
+
+    col_specs = [
+        ("MEASURE", 3, "measure", 0.05),
+        ("S.E.", 4, "se", 0.02),
+        ("INFIT MNSQ", 5, "infit_mnsq", 0.10),
+        ("INFIT ZSTD", 6, "infit_zstd", 1.00),
+        ("OUTFIT MNSQ", 7, "outfit_mnsq", 0.10),
+        ("OUTFIT ZSTD", 8, "outfit_zstd", 1.00),
+        ("CORR.", 9, "ptmeas", 0.10),
+        ("EXP.", 10, "exp_corr", 0.30),
+        ("OBS%", 11, "obs_pct", 2.0),
+        ("EXP%", 12, "exp_pct", 2.0),
+    ]
+
+    any_gate_breached = False
+
+    def safe_float(val):
+        if val is None:
+            return None
+        s = str(val).strip().rstrip("A")
+        if not s:
+            return None
+        try:
+            return float(s)
+        except ValueError:
+            return None
+
+    for tag, hasil_file, data_name, con_file, base in runs:
+        con_path = os.path.join(data_dir, con_file)
+        data_path = os.path.join(data_dir, data_name)
+        iafile_path = os.path.join(data_dir, f"iafile_{base}.TXT")
+        pdfile_path = os.path.join(data_dir, f"pdfile_{base}.TXT")
+
+        golden_items = golden_json_data.get(tag, {}).get("items", [])
+        golden_by_entry = {int(it["entry"]): it for it in golden_items}
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with contextlib.redirect_stdout(io.StringIO()):
+                run_analyze(
+                    con_path=con_path,
+                    data_path=data_path,
+                    out_dir=tmp_dir,
+                    anchors_path=iafile_path if os.path.isfile(iafile_path) else None,
+                    pdfile_path=pdfile_path if os.path.isfile(pdfile_path) else None,
+                    mode="compat",
+                    out_format="csv",
+                )
+            csv_path = os.path.join(tmp_dir, "item_table_15.1.csv")
+            with open(csv_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                _hdr1 = next(reader, None)
+                _hdr2 = next(reader, None)
+                csv_rows = [r for r in reader if r and len(r) >= 13 and r[0].strip().isdigit()]
+
+        for col_name, col_idx, g_key, gate in col_specs:
+            diffs = []
+            matched_entries = []
+            for r in csv_rows:
+                entry = int(r[0].strip())
+                if entry in golden_by_entry:
+                    gold_item = golden_by_entry[entry]
+                    val_csv = safe_float(r[col_idx])
+                    val_gold = safe_float(gold_item.get(g_key))
+                    if val_csv is not None and val_gold is not None:
+                        diffs.append(abs(val_csv - val_gold))
+                        matched_entries.append(entry)
+
+            n = len(diffs)
+            if n > 0:
+                mean_diff = float(np.mean(diffs))
+                max_idx = int(np.argmax(diffs))
+                max_diff = float(diffs[max_idx])
+                worst_entry = matched_entries[max_idx]
+            else:
+                mean_diff = 0.0
+                max_diff = 0.0
+                worst_entry = 0
+
+            if max_diff > gate:
+                any_gate_breached = True
+
+            print(
+                f"{tag:15s} {col_name:12s} n={n:3d} "
+                f"mean={mean_diff:8.4f} max={max_diff:8.4f} worst={worst_entry}"
+            )
+
+    if any_exceeded or any_gate_breached:
+        sys.exit(1)
+    else:
         sys.exit(0)
 
 

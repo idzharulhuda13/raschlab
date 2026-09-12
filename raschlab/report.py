@@ -17,7 +17,7 @@ PERSON_HEADER_ROW_1 = [
     "ENTRY", "TOTAL", "TOTAL", "JMLE", "MODEL", "INFIT", "", "OUTFIT", "", "PTMEASUR-AL", "", "EXACT", "MATCH", ""
 ]
 PERSON_HEADER_ROW_2 = [
-    "NUMBER", "SCORE", "COUNT", "MEASURE", "S.E.", "MNSQ", "ZSTD", "MNSQ", "ZSTD", "CORR.", "EXP.", "OBS%", "EXP%", "PERSON"
+    "NUMBER", "SCORE", "COUNT", "MEASURE", "S.E.", "MNSQ", "ZSTD", "MNSQ", "ZSTD", "CORR.", "EXP.", "OBS%", "EXP%", "PERSON", "RANK"
 ]
 
 OPTION_HEADER_ROW_1 = [
@@ -168,7 +168,9 @@ def item_table_rows(
         # Point-measure correlation over persons who answered item j in calibration set
         b_resp = b[resp_mask]
         x_resp = X[resp_mask, j]
-        if len(x_resp) > 1 and np.std(x_resp, ddof=0) > 1e-12 and np.std(b_resp, ddof=0) > 1e-12:
+        if fit_item is not None and "ptmeas" in fit_item and fit_item["ptmeas"] is not None:
+            corr_val = float(fit_item["ptmeas"][j])
+        elif len(x_resp) > 1 and np.std(x_resp, ddof=0) > 1e-12 and np.std(b_resp, ddof=0) > 1e-12:
             corr_val = float(np.corrcoef(x_resp, b_resp)[0, 1])
         else:
             corr_val = 0.0
@@ -191,15 +193,24 @@ def item_table_rows(
         exp_corr = _fmt(exp_val, 2)
 
         # Exact match percentages: OBS% and EXP%
-        if len(b_resp) > 0:
+        if fit_item is not None and "obs_pct" in fit_item and fit_item["obs_pct"] is not None:
+            obs_pct = float(fit_item["obs_pct"][j])
+        elif len(b_resp) > 0:
             diff = b_resp - d[j]
             P_j = 1.0 / (1.0 + np.exp(-np.clip(diff, -30.0, 30.0)))
             expected_resp = (P_j >= 0.5).astype(float)
             obs_match = (x_resp == expected_resp)
             obs_pct = float(np.mean(obs_match) * 100)
-            exp_pct = float(np.mean(np.maximum(P_j, 1.0 - P_j)) * 100)
         else:
             obs_pct = 0.0
+
+        if fit_item is not None and "exp_pct" in fit_item and fit_item["exp_pct"] is not None:
+            exp_pct = float(fit_item["exp_pct"][j])
+        elif len(b_resp) > 0:
+            diff = b_resp - d[j]
+            P_j = 1.0 / (1.0 + np.exp(-np.clip(diff, -30.0, 30.0)))
+            exp_pct = float(np.mean(np.maximum(P_j, 1.0 - P_j)) * 100)
+        else:
             exp_pct = 0.0
 
         row = TableRow()
@@ -237,6 +248,8 @@ def person_table_rows(
     item_measures=None,
     extra_cols=None,
     digits=2,
+    order=None,
+    rank_letters=False,
 ):
     """Generate person table rows.
     Extreme persons are excluded and counted separately.
@@ -264,6 +277,10 @@ def person_table_rows(
         Extra columns to append to each row.
     digits : int, optional
         Decimal digits for MEASURE and S.E. (default: 2).
+    order : sequence of int, optional
+        Sequence of person indices defining the output row order.
+    rank_letters : bool, optional
+        Whether to append RANK column with rank letters (default: False).
 
     Returns
     -------
@@ -366,6 +383,23 @@ def person_table_rows(
                 row[k] = vals[i] if i < len(vals) else ""
 
         rows.append(row)
+
+    if order is not None:
+        row_map = {i: r for i, r in zip(valid_indices, rows)}
+        rows = TableRowList(
+            [row_map[idx] for idx in order if idx in row_map],
+            n_extreme_excluded=rows.n_extreme_excluded,
+        )
+
+    if rank_letters:
+        n = len(rows)
+        for idx, row in enumerate(rows):
+            if idx < 26:
+                row["RANK"] = chr(ord("A") + idx)
+            elif idx >= n - 26:
+                row["RANK"] = chr(ord("a") + (n - 1 - idx))
+            else:
+                row["RANK"] = ""
 
     return rows
 

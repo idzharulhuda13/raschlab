@@ -42,6 +42,7 @@ def run_analyze(
     out_format="both",
     digits=2,
     lconv=None,
+    person_order="misfit",
 ):
     start_time = time.time()
 
@@ -188,7 +189,7 @@ def run_analyze(
 
     # Fit statistics
     try:
-        fit = fit_stats(x, mask, d, b, keep=keep, anchors=anchors)
+        fit = fit_stats(x, mask, d, b, keep=keep, anchors=anchors, scores=scores, counts=counts)
     except Exception as e:
         print(f"Error calculating fit stats: {e}", file=sys.stderr)
         sys.exit(2)
@@ -206,7 +207,42 @@ def run_analyze(
 
     # Generate table rows
     i_rows = item_table_rows(x, mask, key, d, fit["item"], keep=keep, person_measures=b, digits=digits)
-    p_rows = person_table_rows(x, mask, key, b, fit["person"], keep, labels, item_measures=d, digits=digits)
+    if person_order == "misfit":
+        is_extreme = (counts == 0) | (scores == 0) | (scores == counts)
+        valid = (keep & ~is_extreme) if keep is not None else ~is_extreme
+        valid_indices = np.where(valid)[0]
+        outfit_mnsq = fit["person"]["outfit_mnsq"]
+        sorted_pos = sorted(
+            range(len(valid_indices)),
+            key=lambda p_idx: (-float(outfit_mnsq[p_idx]), int(valid_indices[p_idx]) + 1),
+        )
+        order = [int(valid_indices[p_idx]) for p_idx in sorted_pos]
+        p_rows = person_table_rows(
+            x,
+            mask,
+            key,
+            b,
+            fit["person"],
+            keep,
+            labels,
+            item_measures=d,
+            digits=digits,
+            order=order,
+            rank_letters=True,
+        )
+    else:
+        p_rows = person_table_rows(
+            x,
+            mask,
+            key,
+            b,
+            fit["person"],
+            keep,
+            labels,
+            item_measures=d,
+            digits=digits,
+            rank_letters=False,
+        )
     o_rows = option_rows(x, mask, rows, key, b, keep=keep, item_measures=d, item_labels=item_labels)
 
     # Write output files
@@ -437,6 +473,12 @@ def main(args=None):
         default=None,
         help="JMLE stop threshold for --mode compat (default 0.0125, calibrated against the six reference runs)",
     )
+    analyze_parser.add_argument(
+        "--person-order",
+        choices=["entry", "misfit"],
+        default="misfit",
+        help="Person table row order (default: misfit)",
+    )
 
     suggest_parser = subparsers.add_parser("suggest-deletes")
     suggest_parser.add_argument("--con", required=True, help="Path to control (.CON) file")
@@ -462,6 +504,7 @@ def main(args=None):
             out_format=parsed.format,
             digits=parsed.digits,
             lconv=parsed.lconv,
+            person_order=parsed.person_order,
         )
         sys.exit(0)
     elif parsed.command == "suggest-deletes":
