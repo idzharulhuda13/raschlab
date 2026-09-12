@@ -42,13 +42,15 @@ the test suite.
 | Person accounting (lacking / deleted / extreme) | done — `REPORTED:` matches Winsteps exactly in all six runs (about two thousand / about two thousand / about two thousand / about two thousand / about two thousand / about two thousand) |
 | Item anchors (`IAFILE`) and person delete list (`PDFILE`) | done, verified |
 | Fit statistics (Infit/Outfit MNSQ + ZSTD, model & real S.E.) | done, verified |
-| Separation / reliability / summary blocks | done, verified (item REAL SEP 4.51 REL .95; person REAL SEP .70 REL .33) |
-| Point-measure correlation (CORR.) and expected value (EXP.) | done, verified (EXP max diff 0.02 item — 0.23 at one near-extreme item — / 0.006 person) |
+| Extreme scores (`EXTRSCORE=0.3`, person + item extremes) | done, verified against the reference's extreme-included person block in all six runs |
+| Separation / reliability / summary blocks (incl. `S.SD`, extreme-included person block, raw-score-to-measure correlations) | done, verified (item REAL SEP 4.51→4.52 REL .95; person REAL SEP .70 REL .33) |
+| Point-measure correlation (CORR.) and expected value (EXP.) | done, verified (worst item `CORR.` 0.01, `EXP.` 0.12 — both at one near-extreme item; ≤0.02 elsewhere) |
 | Option/distractor table 15.3 (count, %, ability mean, P.SD, S.E., fit, PTMA, `MISSING ***` row) | done, verified row-by-row vs item 47 and 48 |
 | Output writers: CSV + XLSX in the team's sheet layout (two-row header, 15.1 / 15.3 / person / summary tabs) | done |
 | CLI: `analyze`, `analyze-all`, `suggest-deletes`, regression harness | done |
 | Reference convergence rules (LCONV/RCONV, PROX 0.5-logit range rule) pinned by a golden fixture | done — `tests/regression/test_golden_convergence.py` |
-| Tests | 82 passing with the reference data (5 skipped when `/tmp/reference` is absent) |
+| Formula-level parity audit (every formula/convention, with status and evidence) | done — `docs/parity.md` |
+| Tests | 88 passing with the reference data (5 skipped when `/tmp/reference` is absent) |
 
 ### Estimation modes
 
@@ -66,8 +68,10 @@ the test suite.
 - `OBS%` is the share of responses agreeing with the modal expectation (`p >= 0.5`); `EXP%` is the mean of
   `max(p, 1-p)`.
 - Item `CORR.` and `EXP.` are computed over all reported persons, with extreme persons given a finite measure from
-  the 0.5-adjusted raw score (score 0 solves `sum_j p_ij = 0.5`, a perfect score solves `= count - 0.5`). Without
-  that fill the point-measure correlation of items whose `p` never crosses 0.5 is off by up to 0.6.
+  the adjusted raw score of `EXTRSCORE=0.3` (the documented default: a perfect score is treated as `count - 0.3`,
+  a zero score as `0.3`). The 0.5 we used before was wrong: switching to 0.3 moved the item `CORR.` worst case
+  0.05 → 0.01 and `EXP.` 0.23 → 0.12, and put the extreme-included person summary block exactly on Winsteps's
+  numbers.
 
 ### Parity vs Winsteps 5.2.1
 
@@ -123,9 +127,9 @@ Measured against the golden tables of all six runs (hundreds of items), worst ca
   `OUTFIT ZSTD` 0.07 · `CORR.` 0.01 · `EXP.` 0.02 · `EXP%` 0.10 pp — every one of them inside the item S.E.
   range of 0.13–0.30 logit.
 - **One item carries the rest of the worst case on its own:** verbal #14 (measure −6.05 vs −6.08), a near-extreme
-  item whose expected-score curve is nearly flat. There `OUTFIT ZSTD` 0.89, `CORR.` 0.05 and `EXP.` 0.23 — no
-  other item in the six runs exceeds 0.07 / 0.01 / 0.02. The statistic inherits the precision of the item
-  measure; MNSQ — the number used for misfit decisions — stays inside 0.06.
+  item whose expected-score curve is nearly flat. There `OUTFIT ZSTD` 0.89 and `EXP.` 0.12 — no other item in
+  the six runs exceeds 0.07 and 0.02. The statistic inherits the precision of the item measure; MNSQ — the number
+  used for misfit decisions — stays inside 0.06.
 - `EXACT MATCH OBS%` up to 1.6 pp (mean 0.05 pp) on items that have several responses at p ≈ 0.5: our measure
   differs from Winsteps in the third decimal and the modal decision flips (one response is 0.4 pp on a
   256-response item). `EXP%` is inside 0.10 pp, and on the verbal run OBS% matches Winsteps exactly.
