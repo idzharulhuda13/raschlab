@@ -101,6 +101,31 @@ class TestCLI(unittest.TestCase):
         self.assertFalse(os.path.isfile(os.path.join(out_dir, "item_table_13.1.csv")))
         self.assertTrue(os.path.isfile(os.path.join(out_dir, "analysis_report.xlsx")))
 
+    def test_analyze_digits_parameter(self):
+        out_dir = os.path.join(self.tmpdir, "out_digits")
+        cmd = [
+            "analyze",
+            "--con", self.con_path,
+            "--data", self.data_path,
+            "--out", out_dir,
+            "--format", "csv",
+            "--digits", "4",
+        ]
+        with patch("sys.stdout", new_callable=io.StringIO):
+            with self.assertRaises(SystemExit) as cm:
+                main(cmd)
+            self.assertEqual(cm.exception.code, 0)
+
+        import csv
+        with open(os.path.join(out_dir, "item_table_13.1.csv"), "r", encoding="utf-8") as f:
+            reader = list(csv.reader(f))
+        meas_val = reader[2][3]
+        se_val = reader[2][4]
+        mnsq_val = reader[2][5]
+        self.assertEqual(len(meas_val.split(".")[1]), 4)
+        self.assertEqual(len(se_val.split(".")[1]), 4)
+        self.assertEqual(len(mnsq_val.split(".")[1]), 2)
+
     def test_analyze_key_length_mismatch_exits_2(self):
         bad_con = os.path.join(self.tmpdir, "bad_key.CON")
         with open(bad_con, "w", encoding="utf-8") as f:

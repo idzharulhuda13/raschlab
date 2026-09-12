@@ -73,6 +73,19 @@ class TableRowList(list):
         self.n_extreme = n_extreme_excluded
 
 
+def _fmt(val, decimals):
+    try:
+        f = float(val)
+        if np.isnan(f) or np.isinf(f):
+            return ""
+        rounded = round(f, decimals)
+        if rounded == 0.0:
+            rounded = 0.0
+        return f"{rounded:.{decimals}f}"
+    except (ValueError, TypeError):
+        return str(val) if val is not None else ""
+
+
 def item_table_rows(
     X,
     mask,
@@ -82,6 +95,7 @@ def item_table_rows(
     keep=None,
     person_measures=None,
     extra_cols=None,
+    digits=2,
 ):
     """Generate item table rows matching Winsteps Table 13.1.
 
@@ -105,6 +119,8 @@ def item_table_rows(
         If None, Cohen's PROX starting values are used.
     extra_cols : dict of str -> list, optional
         Extra columns (e.g. {'KET': [...]}) to append to each row.
+    digits : int, optional
+        Decimal digits for MEASURE and S.E. (default: 2).
 
     Returns
     -------
@@ -138,18 +154,18 @@ def item_table_rows(
         score_val = int(np.sum(np.where(resp_mask, X[:, j], 0.0)))
         count_val = int(np.sum(resp_mask))
 
-        meas_val = round(float(d[j]), 2)
-        se_val = round(float(fit_item["se"][j]), 2)
-        infit_mnsq = round(float(fit_item["infit_mnsq"][j]), 2)
-        infit_zstd = round(float(fit_item["infit_zstd"][j]), 2)
-        outfit_mnsq = round(float(fit_item["outfit_mnsq"][j]), 2)
-        outfit_zstd = round(float(fit_item["outfit_zstd"][j]), 2)
+        meas_val = float(d[j])
+        se_val = float(fit_item["se"][j])
+        infit_mnsq = float(fit_item["infit_mnsq"][j])
+        infit_zstd = float(fit_item["infit_zstd"][j])
+        outfit_mnsq = float(fit_item["outfit_mnsq"][j])
+        outfit_zstd = float(fit_item["outfit_zstd"][j])
 
         # Point-measure correlation over persons who answered item j in calibration set
         b_resp = b[resp_mask]
         x_resp = X[resp_mask, j]
         if len(x_resp) > 1 and np.std(x_resp, ddof=0) > 1e-12 and np.std(b_resp, ddof=0) > 1e-12:
-            corr_val = round(float(np.corrcoef(x_resp, b_resp)[0, 1]), 2)
+            corr_val = float(np.corrcoef(x_resp, b_resp)[0, 1])
         else:
             corr_val = 0.0
 
@@ -163,8 +179,8 @@ def item_table_rows(
             P_j = 1.0 / (1.0 + np.exp(-np.clip(diff, -30.0, 30.0)))
             expected_resp = (P_j >= 0.5).astype(float)
             obs_match = (x_resp == expected_resp)
-            obs_pct = round(float(np.mean(obs_match) * 100), 1)
-            exp_pct = round(float(np.mean(np.maximum(P_j, 1.0 - P_j)) * 100), 1)
+            obs_pct = float(np.mean(obs_match) * 100)
+            exp_pct = float(np.mean(np.maximum(P_j, 1.0 - P_j)) * 100)
         else:
             obs_pct = 0.0
             exp_pct = 0.0
@@ -173,16 +189,16 @@ def item_table_rows(
         row["ENTRY"] = j + 1
         row["SCORE"] = score_val
         row["COUNT"] = count_val
-        row["MEASURE"] = meas_val
-        row["S.E."] = se_val
-        row["INFIT MNSQ"] = infit_mnsq
-        row["INFIT ZSTD"] = infit_zstd
-        row["OUTFIT MNSQ"] = outfit_mnsq
-        row["OUTFIT ZSTD"] = outfit_zstd
-        row["CORR."] = corr_val
+        row["MEASURE"] = _fmt(meas_val, digits)
+        row["S.E."] = _fmt(se_val, digits)
+        row["INFIT MNSQ"] = _fmt(infit_mnsq, 2)
+        row["INFIT ZSTD"] = _fmt(infit_zstd, 2)
+        row["OUTFIT MNSQ"] = _fmt(outfit_mnsq, 2)
+        row["OUTFIT ZSTD"] = _fmt(outfit_zstd, 2)
+        row["CORR."] = _fmt(corr_val, 2)
         row["EXP."] = exp_corr
-        row["OBS%"] = obs_pct
-        row["EXP%"] = exp_pct
+        row["OBS%"] = _fmt(obs_pct, 1)
+        row["EXP%"] = _fmt(exp_pct, 1)
 
         if extra_cols:
             for k, vals in extra_cols.items():
@@ -203,6 +219,7 @@ def person_table_rows(
     labels,
     item_measures=None,
     extra_cols=None,
+    digits=2,
 ):
     """Generate person table rows matching Winsteps Table 17.1.
     Extreme persons are excluded and counted separately.
@@ -228,6 +245,8 @@ def person_table_rows(
         Item difficulty measures for computing CORR., OBS%, EXP%.
     extra_cols : dict of str -> list, optional
         Extra columns to append to each row.
+    digits : int, optional
+        Decimal digits for MEASURE and S.E. (default: 2).
 
     Returns
     -------
@@ -260,12 +279,12 @@ def person_table_rows(
         entry = i + 1
         score_val = int(scores[i])
         count_val = int(counts[i])
-        meas_val = round(float(pm[i]), 2)
-        se_val = round(float(fit_person["se"][p_idx]), 2)
-        infit_mnsq = round(float(fit_person["infit_mnsq"][p_idx]), 2)
-        infit_zstd = round(float(fit_person["infit_zstd"][p_idx]), 2)
-        outfit_mnsq = round(float(fit_person["outfit_mnsq"][p_idx]), 2)
-        outfit_zstd = round(float(fit_person["outfit_zstd"][p_idx]), 2)
+        meas_val = float(pm[i])
+        se_val = float(fit_person["se"][p_idx])
+        infit_mnsq = float(fit_person["infit_mnsq"][p_idx])
+        infit_zstd = float(fit_person["infit_zstd"][p_idx])
+        outfit_mnsq = float(fit_person["outfit_mnsq"][p_idx])
+        outfit_zstd = float(fit_person["outfit_zstd"][p_idx])
 
         # Correlation and match percentages across answered items
         if d is not None:
@@ -274,19 +293,20 @@ def person_table_rows(
             d_i = d[items_i]
             if len(x_i) > 1 and np.std(x_i, ddof=0) > 1e-12 and np.std(d_i, ddof=0) > 1e-12:
                 # In Winsteps, person PTMEASUR-AL CORR is correlation with item easiness (-d)
-                corr_val = round(float(np.corrcoef(x_i, -d_i)[0, 1]), 2)
+                corr_val = float(np.corrcoef(x_i, -d_i)[0, 1])
             else:
                 corr_val = 0.0
 
             # ponytail: expected point-measure correlation (EXP.) is not implemented yet.
+            # Convention is unsupported; writing empty string "".
             exp_corr = ""
 
             diff = pm[i] - d_i
             P_i = 1.0 / (1.0 + np.exp(-np.clip(diff, -30.0, 30.0)))
             expected_resp = (P_i >= 0.5).astype(float)
             obs_match = (x_i == expected_resp)
-            obs_pct = round(float(np.mean(obs_match) * 100), 1)
-            exp_pct = round(float(np.mean(np.maximum(P_i, 1.0 - P_i)) * 100), 1)
+            obs_pct = float(np.mean(obs_match) * 100)
+            exp_pct = float(np.mean(np.maximum(P_i, 1.0 - P_i)) * 100)
         else:
             corr_val = 0.0
             exp_corr = ""
@@ -299,16 +319,16 @@ def person_table_rows(
         row["ENTRY"] = entry
         row["SCORE"] = score_val
         row["COUNT"] = count_val
-        row["MEASURE"] = meas_val
-        row["S.E."] = se_val
-        row["INFIT MNSQ"] = infit_mnsq
-        row["INFIT ZSTD"] = infit_zstd
-        row["OUTFIT MNSQ"] = outfit_mnsq
-        row["OUTFIT ZSTD"] = outfit_zstd
-        row["CORR."] = corr_val
+        row["MEASURE"] = _fmt(meas_val, digits)
+        row["S.E."] = _fmt(se_val, digits)
+        row["INFIT MNSQ"] = _fmt(infit_mnsq, 2)
+        row["INFIT ZSTD"] = _fmt(infit_zstd, 2)
+        row["OUTFIT MNSQ"] = _fmt(outfit_mnsq, 2)
+        row["OUTFIT ZSTD"] = _fmt(outfit_zstd, 2)
+        row["CORR."] = _fmt(corr_val, 2)
         row["EXP."] = exp_corr
-        row["OBS%"] = obs_pct
-        row["EXP%"] = exp_pct
+        row["OBS%"] = _fmt(obs_pct, 1)
+        row["EXP%"] = _fmt(exp_pct, 1)
         row["PERSON"] = label_val
 
         if extra_cols:
@@ -353,12 +373,39 @@ def option_rows(*args, **kwargs):
         "ITEM": "ITEM",
     }
 
+    two_dec_keys = {
+        "ABILITY MEAN",
+        "ABILITY PSD",
+        "SE MEAN",
+        "INFT MNSQ",
+        "OUTF MNSQ",
+        "PTMA CORR",
+    }
+    int_keys = {
+        "NUMBER",
+        "VALUE",
+        "DATA COUNT",
+        "DATA%",
+        "ITEM",
+    }
+
     out = []
     for r in raw_rows:
         renamed = TableRow()
         for k, v in r.items():
             target_key = key_map.get(k, k)
-            renamed[target_key] = v
+            if target_key in two_dec_keys:
+                renamed[target_key] = _fmt(v, 2)
+            elif target_key in int_keys:
+                if v is None or v == "":
+                    renamed[target_key] = ""
+                else:
+                    try:
+                        renamed[target_key] = int(round(float(v)))
+                    except (ValueError, TypeError):
+                        renamed[target_key] = v
+            else:
+                renamed[target_key] = v
         out.append(renamed)
     return out
 

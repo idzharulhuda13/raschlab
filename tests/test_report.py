@@ -261,6 +261,60 @@ class TestReport(unittest.TestCase):
             print(f"  {os.path.basename(path_option_csv)}: {size_option:,} bytes ({size_option} bytes)")
             print(f"  {os.path.basename(path_xlsx)}: {size_xlsx:,} bytes ({size_xlsx} bytes)")
 
+    def test_table_number_formatting(self):
+        X = np.array([[1.0], [0.0]])
+        mask = np.ones((2, 1), dtype=bool)
+        item_measures = np.array([0.0])
+        fit_item = {
+            "se": np.array([0.5]),
+            "infit_mnsq": np.array([1.0]),
+            "infit_zstd": np.array([0.0]),
+            "outfit_mnsq": np.array([1.0]),
+            "outfit_zstd": np.array([0.0]),
+        }
+        i_rows_2 = item_table_rows(X, mask, "A", item_measures, fit_item, digits=2)
+        self.assertEqual(i_rows_2[0]["MEASURE"], "0.00")
+        self.assertEqual(i_rows_2[0]["S.E."], "0.50")
+        self.assertEqual(i_rows_2[0]["INFIT MNSQ"], "1.00")
+        self.assertEqual(i_rows_2[0]["INFIT ZSTD"], "0.00")
+        self.assertEqual(i_rows_2[0]["OUTFIT MNSQ"], "1.00")
+        self.assertEqual(i_rows_2[0]["OUTFIT ZSTD"], "0.00")
+        self.assertEqual(i_rows_2[0]["CORR."], "1.00")
+        self.assertEqual(i_rows_2[0]["EXP."], "")
+        self.assertEqual(i_rows_2[0]["OBS%"], "100.0")
+        self.assertEqual(i_rows_2[0]["EXP%"], "75.0")
+
+        # Test digits=4
+        i_rows_4 = item_table_rows(X, mask, "A", item_measures, fit_item, digits=4)
+        self.assertEqual(i_rows_4[0]["MEASURE"], "0.0000")
+        self.assertEqual(i_rows_4[0]["S.E."], "0.5000")
+        self.assertEqual(i_rows_4[0]["INFIT MNSQ"], "1.00")
+
+        # Option rows formatting
+        raw_opts = [{
+            "NUMBER": 1,
+            "CODE": "A",
+            "VALUE": 1,
+            "DATA COUNT": 10.0,
+            "DATA%": 50.0,
+            "ABILITY MEAN": 1.0,
+            "ABILITY PSD": 0.5,
+            "SE MEAN": 0.2,
+            "INFT MNSQ": 1.0,
+            "OUTF MNSQ": 0.9,
+            "PTMA CORR": 0.3,
+            "ITEM": 1,
+        }]
+        opts = option_rows(raw_opts)
+        self.assertEqual(opts[0]["DATA COUNT"], 10)
+        self.assertEqual(opts[0]["DATA%"], 50)
+        self.assertEqual(opts[0]["ABILITY MEAN"], "1.00")
+        self.assertEqual(opts[0]["ABILITY PSD"], "0.50")
+        self.assertEqual(opts[0]["SE MEAN"], "0.20")
+        self.assertEqual(opts[0]["INFT MNSQ"], "1.00")
+        self.assertEqual(opts[0]["OUTF MNSQ"], "0.90")
+        self.assertEqual(opts[0]["PTMA CORR"], "0.30")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -43,7 +43,7 @@ python -m raschlab analyze \
 - `--pdfile PATH`: Path to person delete file (`PDFILE`).
 - `--mode compat|exact`: Estimation algorithm (`compat` default matches Winsteps closer; `exact` uses classic Newton-Raphson JMLE).
 - `--format csv|xlsx|both`: Output format (`both` default writes all 5 files).
-- `--digits N`: Decimal precision for outputs (default: 2).
+- `--digits N`: Number of decimal digits for MEASURE and S.E. in item and person tables (default: 2).
 - `--out DIR`: Destination directory for output files. *(Required)*
 
 **Output Files:**
@@ -105,11 +105,13 @@ All item measure correlations against official Winsteps outputs exceed **0.9999*
 
 ---
 
-## Known Limitations
+## Known deviations from Winsteps
 
-1. **Expected Point-Measure Correlation (`EXP.`)**: The `EXP.` column in Table 13.1 and Table 17.1 is not currently implemented and outputs as blank `""`.
-2. **Estimation Path**: `compat` mode reproduces Winsteps's logistic ogive parameter update, starting from Cohen's PROX and ceasing at `LCONV=0.005`.
-3. **Penalaran Residual**: The `penalaran` and `penalaran_rev` subtests exhibit the largest logit difference (0.075) because anchor item 1 is anchored far out at 3.23 logits, creating a slight scale offset under sparse matrix sampling.
+- the EXP. column of the item/person tables is not implemented (left blank);
+- INFIT/OUTFIT ZSTD differ from Winsteps by up to ~0.3 because Winsteps uses its own centralised Wilson-Hilferty variance convention (MNSQ values match within 0.02, and those are the ones used for misfit decisions);
+- EXACT MATCH OBS% can differ by up to ~1.5 percentage points (different exact-match convention);
+- compat mode approximates Winsteps's iterated PROX start and stops at LCONV=0.005 (recommended by Winsteps for anchored analyses), so per-run item-measure differences are up to 0.075 logit (penalaran) and typically < 0.04;
+- the item/person measures are otherwise identical in ordering (max rank displacement <= 2 positions in every one of the six runs).
 
 ---
 

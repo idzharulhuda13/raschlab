@@ -182,8 +182,8 @@ def run_analyze(
     s_rows = summary_rows(isum, psum, counts_info=counts_info)
 
     # Generate table rows
-    i_rows = item_table_rows(x, mask, key, d, fit["item"], keep=keep, person_measures=b)
-    p_rows = person_table_rows(x, mask, key, b, fit["person"], keep, labels, item_measures=d)
+    i_rows = item_table_rows(x, mask, key, d, fit["item"], keep=keep, person_measures=b, digits=digits)
+    p_rows = person_table_rows(x, mask, key, b, fit["person"], keep, labels, item_measures=d, digits=digits)
     o_rows = option_rows(x, mask, rows, key, b, keep=keep, item_measures=d)
 
     # Write output files
@@ -396,7 +396,12 @@ def main(args=None):
     analyze_parser.add_argument("--pdfile", default=None, help="Path to person delete (PDFILE) file")
     analyze_parser.add_argument("--mode", choices=["compat", "exact"], default="compat", help="Estimation mode (default: compat)")
     analyze_parser.add_argument("--format", choices=["csv", "xlsx", "both"], default="both", help="Output format (default: both)")
-    analyze_parser.add_argument("--digits", type=int, default=2, help="Decimal digits (default: 2)")
+    analyze_parser.add_argument(
+        "--digits",
+        type=int,
+        default=2,
+        help="Number of decimal digits for MEASURE and S.E. in item and person tables (default: 2)",
+    )
 
     suggest_parser = subparsers.add_parser("suggest-deletes")
     suggest_parser.add_argument("--con", required=True, help="Path to control (.CON) file")
