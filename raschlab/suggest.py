@@ -44,3 +44,77 @@ def suggest_deletes(labels, scores, counts, min_score=None, min_count=None):
 
     candidates.sort(key=lambda item: item["entry"])
     return candidates
+
+
+def suggest_by_fit(
+    labels,
+    scores,
+    counts,
+    infit,
+    outfit,
+    min_infit=None,
+    min_outfit=None,
+    min_score=None,
+    min_count=None,
+):
+    """Suggest person entries to delete based on fit (infit/outfit) and/or score/count thresholds.
+
+    Parameters
+    ----------
+    labels : sequence of str
+        Person labels.
+    scores : sequence of int
+        Raw score per person.
+    counts : sequence of int
+        Number of valid responses per person.
+    infit : sequence of float or None
+        Person infit MNSQ values (None for extreme/uncalibrated persons).
+    outfit : sequence of float or None
+        Person outfit MNSQ values (None for extreme/uncalibrated persons).
+    min_infit : float, optional
+        Flag persons with infit >= min_infit (reason "infit").
+    min_outfit : float, optional
+        Flag persons with outfit >= min_outfit (reason "outfit").
+    min_score : int, optional
+        Flag persons with score < min_score (reason "score").
+    min_count : int, optional
+        Flag persons with count < min_count (reason "count").
+
+    Returns
+    -------
+    list of dict
+        Each dict contains:
+            entry : int (1-based index in data file order)
+            label : str
+            score : int
+            count : int
+            infit : float or None
+            outfit : float or None
+            reason : str (comma-joined active reasons in order: "infit", "outfit", "score", "count")
+        Sorted by entry.
+    """
+    candidates = []
+    for i, (label, s, c, inf, outf) in enumerate(zip(labels, scores, counts, infit, outfit)):
+        reasons = []
+        if min_infit is not None and inf is not None and inf >= min_infit:
+            reasons.append("infit")
+        if min_outfit is not None and outf is not None and outf >= min_outfit:
+            reasons.append("outfit")
+        if min_score is not None and s < min_score:
+            reasons.append("score")
+        if min_count is not None and c < min_count:
+            reasons.append("count")
+
+        if reasons:
+            candidates.append({
+                "entry": i + 1,
+                "label": str(label),
+                "score": int(s),
+                "count": int(c),
+                "infit": inf,
+                "outfit": outf,
+                "reason": ",".join(reasons),
+            })
+
+    candidates.sort(key=lambda item: item["entry"])
+    return candidates
