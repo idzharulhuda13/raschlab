@@ -37,6 +37,7 @@ def option_table(
     keep=None,
     item_measures=None,
     deleted=None,
+    item_labels=None,
 ):
     """Generate distractor and category statistics table matching Winsteps Table 15.3.
 
@@ -136,6 +137,7 @@ def option_table(
 
     for j in range(I):
         item_num = j + 1
+        item_label = str(item_labels[j]) if item_labels is not None and j < len(item_labels) else str(item_num)
         key_char = key[j]
 
         resp_mask = keep_mask & mask[:, j]
@@ -229,7 +231,7 @@ def option_table(
                 "INFT_MNSQ": round(infit, 2),
                 "OUTF_MNSQ": round(outfit, 2),
                 "PTMA_CORR": round(ptma, 2),
-                "ITEM": item_num,
+                "ITEM": item_label,
             })
 
         # Sort item options by ascending ABILITY MEAN
@@ -264,7 +266,7 @@ def option_table(
             "INFT_MNSQ": "",
             "OUTF_MNSQ": "",
             "PTMA_CORR": round(ptma_m, 2),
-            "ITEM": item_num,
+            "ITEM": item_label,
         })
 
         out_rows.extend(item_rows)

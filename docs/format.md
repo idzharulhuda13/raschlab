@@ -70,7 +70,7 @@ Plain text file listing persons to exclude from calibrations and reported tables
 
 Output tables replicate the structure used in Winsteps and team analytical spreadsheets:
 
-### Item Table (`item_table_13.1.csv` / Sheet `13.1`)
+### Item Table (`item_table_15.1.csv` / Sheet `15.1`)
 | Column | Name | Description |
 |---|---|---|
 | 1 | ENTRY NUMBER | 1-based item index |
@@ -95,7 +95,7 @@ Output tables replicate the structure used in Winsteps and team analytical sprea
 - $SD_b = \text{std}(b_i, \text{ddof}=0)$ (population standard deviation)
 - $\text{EXP}_j = \frac{\text{num}}{SD_b \cdot \text{conv}}$ (guards to 0.00 if denominator is 0)
 
-### Person Table (`person_table_17.1.csv` / Sheet `17.1`)
+### Person Table (`person_table.csv` / Sheet `person`)
 Columns 1–13 identical in layout to Item Table above, plus Column 14 (`PERSON`): person label string. Extreme persons are excluded from this table.
 
 **Person EXP. Formula** (for person $i$, over the $N$ items answered by person $i$):
@@ -112,26 +112,26 @@ Columns 1–13 identical in layout to Item Table above, plus Column 14 (`PERSON`
 | 1 | NUMBER | 1-based item entry number |
 | 2 | CODE | Option letter/character (e.g. `A`, `B`, `C`, `D`, `E`) or `MISSING ***` |
 | 3 | VALUE | Scored value for this option (`1` for key, `0` otherwise, empty string for missing) |
-| 4 | DATA COUNT | Number of persons selecting this option (or missing responses) |
-| 5 | DATA% | Percentage of valid responders selecting option (or missing % over population) |
+| 4 | COUNT | Number of persons selecting this option (or missing responses) |
+| 5 | % | Percentage of valid responders selecting option (or missing % over population) |
 | 6 | ABILITY MEAN | Mean ability measure of responders selecting option / missing responses |
 | 7 | ABILITY PSD | Population standard deviation of abilities |
-| 8 | SE MEAN | Standard error of ability (`P.SD / sqrt(count - 1)` for options, `P.SD / sqrt(DATA COUNT)` for missing) |
+| 8 | SE MEAN | Standard error of ability (`P.SD / sqrt(count - 1)` for options, `P.SD / sqrt(COUNT)` for missing) |
 | 9 | INFT MNSQ | Infit mean square of the option (blank for missing) |
 | 10 | OUTF MNSQ | Outfit mean square of the option (blank for missing) |
 | 11 | PTMA CORR | Point-measure correlation for option choice / missing responses |
-| 12 | ITEM | Item number label |
+| 12 | ITEM | Item label (e.g. `contoh_kode_kolom`) |
 
 **Conventions**:
 - **Row Order**: Options within each item are sorted by ascending `ABILITY MEAN` (the key typically appears last), followed by a single appended `MISSING ***` row per item.
 - **Missing Row**:
   - `population`: Total persons excluding those listed in the `PDFILE` delete list (`P - len(deleted)`).
-  - `DATA COUNT`: `population - valid_responses` for that item.
-  - `DATA%`: `round(DATA COUNT / population * 100)`. Option percentages keep the item's valid count as denominator.
+  - `COUNT`: `population - valid_responses` for that item.
+  - `%`: `round(COUNT / population * 100)`. Option percentages keep the item's valid count as denominator.
   - `CODE`: `"MISSING ***"`, `VALUE`: `""`, `INFT MNSQ` and `OUTF MNSQ`: blank (`""`).
   - `ABILITY MEAN`, `ABILITY PSD`, `PTMA CORR`: Computed over persons who have a person measure.
-  - `SE MEAN`: Standard error of the mean, `P.SD / sqrt(DATA COUNT)`.
-  - `ITEM`: Item entry number, identical to regular rows.
+  - `SE MEAN`: Standard error of the mean, `P.SD / sqrt(COUNT)`.
+  - `ITEM`: Item label, identical to regular rows.
 
 ### Summary Table (`summary_table.csv` / Sheet `summary`)
 Contains summary statistics for items and persons (counts, mean/SEM/P.SD/min/max measures and SEs, infit/outfit MNSQ means and SDs, real and model RMSE/separation/reliability, raw-score-to-measure correlation, and person exclusion counts).

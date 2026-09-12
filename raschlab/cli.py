@@ -90,8 +90,17 @@ def run_analyze(
             resolved_labels_path = labels_path
     else:
         con_ilabel = con.get("ILABEL")
-        if con_ilabel and os.path.isfile(con_ilabel):
-            resolved_labels_path = con_ilabel
+        if con_ilabel:
+            if os.path.isfile(con_ilabel):
+                resolved_labels_path = con_ilabel
+            else:
+                base_name = os.path.basename(con_ilabel.replace("\\", "/"))
+                cand_con = os.path.join(os.path.dirname(con_path), base_name)
+                cand_data = os.path.join(os.path.dirname(resolved_data_path), base_name)
+                if os.path.isfile(cand_con):
+                    resolved_labels_path = cand_con
+                elif os.path.isfile(cand_data):
+                    resolved_labels_path = cand_data
 
     # Read anchors (optional)
     anchors = None
@@ -116,12 +125,17 @@ def run_analyze(
         print(f"Error reading data matrix: {e}", file=sys.stderr)
         sys.exit(2)
 
-    if resolved_labels_path:
+    item_labels = None
+    if resolved_labels_path and os.path.isfile(resolved_labels_path):
         try:
             with open(resolved_labels_path, "r", encoding="utf-8") as f:
                 override_labels = [line.strip() for line in f if line.strip()]
-            if len(override_labels) == len(labels):
+            if len(override_labels) == ni:
+                item_labels = override_labels
+            elif len(override_labels) == len(labels):
                 labels = override_labels
+            else:
+                item_labels = override_labels
         except Exception:
             pass
 
@@ -192,15 +206,15 @@ def run_analyze(
     # Generate table rows
     i_rows = item_table_rows(x, mask, key, d, fit["item"], keep=keep, person_measures=b, digits=digits)
     p_rows = person_table_rows(x, mask, key, b, fit["person"], keep, labels, item_measures=d, digits=digits)
-    o_rows = option_rows(x, mask, rows, key, b, keep=keep, item_measures=d)
+    o_rows = option_rows(x, mask, rows, key, b, keep=keep, item_measures=d, item_labels=item_labels)
 
     # Write output files
     os.makedirs(out_dir, exist_ok=True)
     files_written = []
     fmt = (out_format or "both").lower()
 
-    path_item = os.path.join(out_dir, "item_table_13.1.csv")
-    path_person = os.path.join(out_dir, "person_table_17.1.csv")
+    path_item = os.path.join(out_dir, "item_table_15.1.csv")
+    path_person = os.path.join(out_dir, "person_table.csv")
     path_option = os.path.join(out_dir, "option_table_15.3.csv")
     path_summary = os.path.join(out_dir, "summary_table.csv")
     path_xlsx = os.path.join(out_dir, "analysis_report.xlsx")
@@ -220,7 +234,8 @@ def run_analyze(
         files_written.append(os.path.abspath(path_xlsx))
 
     elapsed = time.time() - start_time
-    np_reported = psum.get("count", len(p_rows))
+    np_reported = int(np.sum(keep)) if keep is not None else n_persons
+    np_calibrated = psum.get("count", len(p_rows))
     extreme_total = counts_info["extreme_min"] + counts_info["extreme_max"]
     anchors_count = len(anchors) if anchors else 0
 
@@ -229,7 +244,8 @@ def run_analyze(
     print("============================================================")
     print(f"NI                 : {ni}")
     print(f"NP input           : {n_persons}")
-    print(f"NP reported        : {np_reported}")
+    print(f"NP reported (after delete)    : {np_reported}")
+    print(f"NP calibrated (minus extreme) : {np_calibrated}")
     print(f"Lacking count      : {counts_info['lacking']}")
     print(f"Deleted count      : {counts_info['deleted']}")
     print(f"Extreme count      : {extreme_total} ({counts_info['extreme_min']} min, {counts_info['extreme_max']} max)")

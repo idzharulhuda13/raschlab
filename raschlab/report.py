@@ -24,7 +24,7 @@ OPTION_HEADER_ROW_1 = [
     "ENTRY", "DATA", "SCORE", "DATA", "", "ABILITY", "", "S.E.", "INFT", "OUTF", "PTMA", ""
 ]
 OPTION_HEADER_ROW_2 = [
-    "NUMBER", "CODE", "VALUE", "DATA COUNT", "DATA%", "ABILITY MEAN", "ABILITY PSD", "SE MEAN", "INFT MNSQ", "OUTF MNSQ", "PTMA CORR", "ITEM"
+    "NUMBER", "CODE", "VALUE", "COUNT", "%", "ABILITY MEAN", "ABILITY PSD", "SE MEAN", "INFT MNSQ", "OUTF MNSQ", "PTMA CORR", "ITEM"
 ]
 
 
@@ -45,13 +45,17 @@ class TableRow(dict):
         "PTMEASUR-AL EXP.": "EXP.",
         "EXACT MATCH OBS%": "OBS%",
         "EXACT MATCH EXP%": "EXP%",
+        "DATA COUNT": "COUNT",
+        "DATA_COUNT": "COUNT",
+        "DATA%": "%",
+        "DATA_PCT": "%",
     }
 
     def __getitem__(self, key):
-        if key in self:
+        if super().__contains__(key):
             return super().__getitem__(key)
         canon = self._ALIASES.get(key)
-        if canon and canon in self:
+        if canon and super().__contains__(canon):
             return super().__getitem__(canon)
         raise KeyError(key)
 
@@ -97,7 +101,7 @@ def item_table_rows(
     extra_cols=None,
     digits=2,
 ):
-    """Generate item table rows matching Winsteps Table 13.1.
+    """Generate item table rows matching Winsteps Table 15.1.
 
     Parameters
     ----------
@@ -125,7 +129,7 @@ def item_table_rows(
     Returns
     -------
     list of TableRow
-        List of dicts with 13 keys corresponding to Table 13.1.
+        List of dicts with 13 keys corresponding to Table 15.1.
     """
     X = np.asarray(X, dtype=float)
     mask = np.asarray(mask, dtype=bool)
@@ -234,7 +238,7 @@ def person_table_rows(
     extra_cols=None,
     digits=2,
 ):
-    """Generate person table rows matching Winsteps Table 17.1.
+    """Generate person table rows.
     Extreme persons are excluded and counted separately.
 
     Parameters
@@ -366,24 +370,36 @@ def person_table_rows(
     return rows
 
 
-def option_rows(*args, **kwargs):
+def option_rows(*args, item_labels=None, **kwargs):
     """Wrap distractor.option_table output, renaming keys to team's labels:
-    NUMBER, CODE, VALUE, DATA COUNT, DATA%, ABILITY MEAN, ABILITY PSD, SE MEAN,
+    NUMBER, CODE, VALUE, COUNT, %, ABILITY MEAN, ABILITY PSD, SE MEAN,
     INFT MNSQ, OUTF MNSQ, PTMA CORR, ITEM.
     """
     if len(args) == 1 and isinstance(args[0], list) and (len(args[0]) == 0 or isinstance(args[0][0], dict)):
         raw_rows = args[0]
+        if item_labels is not None:
+            for r in raw_rows:
+                num = r.get("NUMBER")
+                if num is not None:
+                    try:
+                        j = int(num) - 1
+                        if 0 <= j < len(item_labels):
+                            r["ITEM"] = str(item_labels[j])
+                    except (ValueError, TypeError):
+                        pass
     else:
-        raw_rows = option_table(*args, **kwargs)
+        raw_rows = option_table(*args, item_labels=item_labels, **kwargs)
 
     key_map = {
         "NUMBER": "NUMBER",
         "CODE": "CODE",
         "VALUE": "VALUE",
-        "DATA_COUNT": "DATA COUNT",
-        "DATA COUNT": "DATA COUNT",
-        "DATA_PCT": "DATA%",
-        "DATA%": "DATA%",
+        "DATA_COUNT": "COUNT",
+        "DATA COUNT": "COUNT",
+        "COUNT": "COUNT",
+        "DATA_PCT": "%",
+        "DATA%": "%",
+        "%": "%",
         "ABILITY_MEAN": "ABILITY MEAN",
         "ABILITY MEAN": "ABILITY MEAN",
         "ABILITY_PSD": "ABILITY PSD",
@@ -410,9 +426,10 @@ def option_rows(*args, **kwargs):
     int_keys = {
         "NUMBER",
         "VALUE",
+        "COUNT",
+        "%",
         "DATA COUNT",
         "DATA%",
-        "ITEM",
     }
 
     out = []
@@ -572,22 +589,22 @@ def write_csv(rows, path, header_rows=None):
 
 
 def write_workbook(path, item_rows, person_rows, option_rows, summary_rows):
-    """Write XLSX workbook containing sheets: '13.1', '17.1', '15.3', 'summary'.
+    """Write XLSX workbook containing sheets: '15.1', 'person', '15.3', 'summary'.
 
     Each sheet starts with its own two-row header where applicable.
     """
     wb = openpyxl.Workbook()
     default_sheet = wb.active
 
-    # Sheet 13.1 (Items)
-    ws_item = wb.create_sheet(title="13.1")
+    # Sheet 15.1 (Items)
+    ws_item = wb.create_sheet(title="15.1")
     ws_item.append(ITEM_HEADER_ROW_1)
     ws_item.append(ITEM_HEADER_ROW_2)
     for r in item_rows:
         ws_item.append(list(r.values()))
 
-    # Sheet 17.1 (Persons)
-    ws_person = wb.create_sheet(title="17.1")
+    # Sheet person (Persons)
+    ws_person = wb.create_sheet(title="person")
     ws_person.append(PERSON_HEADER_ROW_1)
     ws_person.append(PERSON_HEADER_ROW_2)
     for r in person_rows:

@@ -143,9 +143,9 @@ class TestReport(unittest.TestCase):
 
             # Check openpyxl output
             wb = openpyxl.load_workbook(xlsx_path)
-            self.assertEqual(wb.sheetnames, ["13.1", "17.1", "15.3", "summary"])
+            self.assertEqual(wb.sheetnames, ["15.1", "person", "15.3", "summary"])
 
-            ws_item = wb["13.1"]
+            ws_item = wb["15.1"]
             row1_vals = [cell.value or "" for cell in ws_item[1]]
             row2_vals = [cell.value or "" for cell in ws_item[2]]
             self.assertEqual(row1_vals, ITEM_HEADER_ROW_1)
@@ -248,8 +248,8 @@ class TestReport(unittest.TestCase):
         s_rows = summary_rows(sum_item_dict, sum_person_dict)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            path_item_csv = os.path.join(tmpdir, "item_table_13.1.csv")
-            path_person_csv = os.path.join(tmpdir, "person_table_17.1.csv")
+            path_item_csv = os.path.join(tmpdir, "item_table_15.1.csv")
+            path_person_csv = os.path.join(tmpdir, "person_table.csv")
             path_option_csv = os.path.join(tmpdir, "option_table_15.3.csv")
             path_xlsx = os.path.join(tmpdir, "analysis_report.xlsx")
 

@@ -47,11 +47,11 @@ python -m raschlab analyze \
 - `--out DIR`: Destination directory for output files. *(Required)*
 
 **Output Files:**
-- `item_table_13.1.csv`: Item measures, SE, fit, point-measure correlation (Winsteps Table 13.1).
-- `person_table_17.1.csv`: Non-extreme person measures, SE, and fit (Winsteps Table 17.1).
+- `item_table_15.1.csv`: Item measures, SE, fit, point-measure correlation (Winsteps Table 15.1).
+- `person_table.csv`: Non-extreme person measures, SE, and fit.
 - `option_table_15.3.csv`: Distractor and category statistics (Winsteps Table 15.3).
 - `summary_table.csv`: Item and person summary statistics.
-- `analysis_report.xlsx`: Excel workbook containing sheets `13.1`, `17.1`, `15.3`, and `summary`.
+- `analysis_report.xlsx`: Excel workbook containing sheets `15.1`, `person`, `15.3`, and `summary`.
 
 ---
 

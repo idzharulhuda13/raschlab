@@ -58,8 +58,8 @@ class TestCLI(unittest.TestCase):
             self.assertIn("NP input           : 5", output)
             self.assertIn("Output files:", output)
 
-        self.assertTrue(os.path.isfile(os.path.join(out_dir, "item_table_13.1.csv")))
-        self.assertTrue(os.path.isfile(os.path.join(out_dir, "person_table_17.1.csv")))
+        self.assertTrue(os.path.isfile(os.path.join(out_dir, "item_table_15.1.csv")))
+        self.assertTrue(os.path.isfile(os.path.join(out_dir, "person_table.csv")))
         self.assertTrue(os.path.isfile(os.path.join(out_dir, "option_table_15.3.csv")))
         self.assertTrue(os.path.isfile(os.path.join(out_dir, "summary_table.csv")))
         self.assertTrue(os.path.isfile(os.path.join(out_dir, "analysis_report.xlsx")))
@@ -78,8 +78,8 @@ class TestCLI(unittest.TestCase):
                 main(cmd)
             self.assertEqual(cm.exception.code, 0)
 
-        self.assertTrue(os.path.isfile(os.path.join(out_dir, "item_table_13.1.csv")))
-        self.assertTrue(os.path.isfile(os.path.join(out_dir, "person_table_17.1.csv")))
+        self.assertTrue(os.path.isfile(os.path.join(out_dir, "item_table_15.1.csv")))
+        self.assertTrue(os.path.isfile(os.path.join(out_dir, "person_table.csv")))
         self.assertTrue(os.path.isfile(os.path.join(out_dir, "option_table_15.3.csv")))
         self.assertTrue(os.path.isfile(os.path.join(out_dir, "summary_table.csv")))
         self.assertFalse(os.path.isfile(os.path.join(out_dir, "analysis_report.xlsx")))
@@ -98,7 +98,7 @@ class TestCLI(unittest.TestCase):
                 main(cmd)
             self.assertEqual(cm.exception.code, 0)
 
-        self.assertFalse(os.path.isfile(os.path.join(out_dir, "item_table_13.1.csv")))
+        self.assertFalse(os.path.isfile(os.path.join(out_dir, "item_table_15.1.csv")))
         self.assertTrue(os.path.isfile(os.path.join(out_dir, "analysis_report.xlsx")))
 
     def test_analyze_digits_parameter(self):
@@ -117,7 +117,7 @@ class TestCLI(unittest.TestCase):
             self.assertEqual(cm.exception.code, 0)
 
         import csv
-        with open(os.path.join(out_dir, "item_table_13.1.csv"), "r", encoding="utf-8") as f:
+        with open(os.path.join(out_dir, "item_table_15.1.csv"), "r", encoding="utf-8") as f:
             reader = list(csv.reader(f))
         meas_val = reader[2][3]
         se_val = reader[2][4]
@@ -241,8 +241,8 @@ class TestCLI(unittest.TestCase):
             self.assertEqual(cm.exception.code, 0)
             self.assertEqual(mock_err.getvalue(), "")
 
-        item_csv = os.path.join(out_dir, "item_table_13.1.csv")
-        person_csv = os.path.join(out_dir, "person_table_17.1.csv")
+        item_csv = os.path.join(out_dir, "item_table_15.1.csv")
+        person_csv = os.path.join(out_dir, "person_table.csv")
         self.assertTrue(os.path.isfile(item_csv))
         self.assertTrue(os.path.isfile(person_csv))
 
@@ -283,8 +283,8 @@ class TestCLI(unittest.TestCase):
             self.assertIn("Warning: Labels file not found:", lines[0])
             self.assertIn(missing_labels, lines[0])
 
-        item_csv = os.path.join(out_dir, "item_table_13.1.csv")
-        person_csv = os.path.join(out_dir, "person_table_17.1.csv")
+        item_csv = os.path.join(out_dir, "item_table_15.1.csv")
+        person_csv = os.path.join(out_dir, "person_table.csv")
         self.assertTrue(os.path.isfile(item_csv))
         self.assertTrue(os.path.isfile(person_csv))
 
