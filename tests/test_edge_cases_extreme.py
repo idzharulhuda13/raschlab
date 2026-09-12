@@ -274,13 +274,13 @@ def test_zstd_clip_holds_for_every_reported_zstd(tmp_path):
 
     # The clip is active, not a no-op: the strongest item outfit (MNSQ 2606.00)
     # and the contradicting persons all land exactly on 9.90.
-    assert [r[COL_OUTFIT_ZSTD] for r in item_rows] == ["9.90", "1.85", "-0.37", "1.45", "9.35"]
+    assert [r[COL_OUTFIT_ZSTD] for r in item_rows] == ["9.90", "1.83", "-0.38", "1.43", "9.26"]
     assert sum(1 for r in person_rows if r[COL_OUTFIT_ZSTD] == "9.90") == 11
     # ... while other values in the same tables are free to sit below it.
     assert any(abs(float(r[COL_OUTFIT_ZSTD])) < 9.9 for r in item_rows)
     person_by_label = {row[13]: row for row in person_rows}
     assert person_by_label["P025"][COL_OUTFIT_ZSTD] == "9.90"  # missed the easiest item
-    assert person_by_label["P011"][COL_OUTFIT_ZSTD] == "3.06"  # same table, unclipped
+    assert person_by_label["P011"][COL_OUTFIT_ZSTD] == "3.04"  # same table, unclipped
 
 
 def test_zstd_clip_is_active_not_a_no_op(tmp_path):

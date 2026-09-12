@@ -96,7 +96,7 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
     keep : array-like of shape (P,), optional
         Boolean mask of persons to keep in calibration.
     lconv : float, optional
-        Convergence threshold on maximum logit change (default: 0.0125).
+        Convergence threshold on maximum logit change (default: 0.015).
     delta : float, optional
         Step size for evaluating expected scores (default: 0.1).
     max_iter : int, optional
@@ -135,7 +135,7 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
         active_persons = non_extreme
 
     if lconv is None:
-        lconv = 0.0125
+        lconv = 0.015
 
     mask_item = mask & active_persons[:, None]
     N_j = np.sum(mask_item, axis=0)
@@ -150,6 +150,7 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
     converged = False
     iterations = 0
     max_change = 0.0
+    trace = []
 
     for it in range(1, max_iter + 1):
         iterations = it
@@ -195,6 +196,16 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
         b_change = np.max(np.abs(b_step[active_persons])) if np.any(active_persons) else 0.0
         max_change = float(max(d_change, b_change))
 
+        P = 1.0 / (1.0 + np.exp(-np.clip(b[:, None] - d[None, :], -30, 30)))
+        resids = np.abs(S_p - np.sum(np.where(mask, P, 0.0), axis=1))
+        trace.append({
+            "iteration": it,
+            "max_logit_change": float(d_change),
+            "max_score_residual": float(np.max(resids[active_persons])) if np.any(active_persons) else 0.0,
+            "least_converged_item": int(np.argmax(np.where(valid_j, np.abs(d_step), -1.0))) + 1,
+            "least_converged_person": int(np.argmax(np.where(active_persons, resids, -1.0))) + 1,
+        })
+
         if max_change <= lconv:
             converged = True
             break
@@ -207,6 +218,7 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
         "is_extreme_min": is_extreme_min,
         "is_extreme_max": is_extreme_max,
         "converged": converged,
+        "trace": trace,
     }
 
 

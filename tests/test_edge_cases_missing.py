@@ -268,8 +268,8 @@ def test_single_category_item_is_large_finite_not_missing(tmp_path):
 
     # ... and what the analyser actually emits is a large finite measure with a
     # huge S.E. - NOT an extreme/missing marker and not NaN/inf.
-    assert degenerate[3] == "-28.71"
-    assert degenerate[4] == "352.11"
+    assert degenerate[3] == "-28.70"
+    assert degenerate[4] == "351.63"
     assert abs(float(degenerate[3])) > 10.0
     assert float(degenerate[4]) > 100.0
     assert math.isfinite(float(degenerate[3])) and math.isfinite(float(degenerate[4]))

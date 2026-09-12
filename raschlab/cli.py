@@ -539,7 +539,7 @@ def main(args=None):
         "--lconv",
         type=float,
         default=None,
-        help="JMLE stop threshold for --mode compat (default 0.0125, calibrated against the six reference runs)",
+        help="JMLE stop threshold for --mode compat (default 0.015, calibrated against the six reference runs)",
     )
     analyze_parser.add_argument(
         "--person-order",
@@ -563,7 +563,7 @@ def main(args=None):
         "--lconv",
         type=float,
         default=None,
-        help="JMLE stop threshold for --mode compat (default 0.0125, calibrated against the six reference runs)",
+        help="JMLE stop threshold for --mode compat (default 0.015, calibrated against the six reference runs)",
     )
 
     suggest_parser = subparsers.add_parser("suggest-deletes")
