@@ -8,6 +8,8 @@ from raschlab.scoring import score
 from raschlab.estimate import prox, jmle
 from raschlab.anchors import read_anchors
 from raschlab.conventions import read_person_deletes, classify_persons
+from raschlab.fit import fit_stats
+from raschlab.summary import item_summary, person_summary
 
 DATA_DIR_ENV = "RASCHLAB_DATA_DIR"
 
@@ -70,6 +72,39 @@ class TestEstimateReal(unittest.TestCase):
         item_mean = float(np.mean(res["item_measures"]))
         self.assertAlmostEqual(item_mean, 0.128, delta=0.05)
 
+        # Compute fit statistics
+        fit = fit_stats(x, mask, res["item_measures"], res["person_measures"], keep=keep, anchors=anchors)
+        isum = item_summary(fit["item"], res["item_measures"])
+        psum = person_summary(fit["person"], res["person_measures"], scores=scores, counts=counts, keep=keep)
+
+        # Item fit assertions vs golden targets
+        self.assertAlmostEqual(isum["infit_mnsq"]["mean"], 1.002, delta=0.03)
+        self.assertAlmostEqual(isum["infit_mnsq"]["sd"], 0.079, delta=0.03)
+        self.assertAlmostEqual(isum["outfit_mnsq"]["mean"], 1.012, delta=0.03)
+        self.assertAlmostEqual(isum["outfit_mnsq"]["sd"], 0.131, delta=0.03)
+
+        # Person measure assertions vs golden targets
+        self.assertAlmostEqual(psum["measure"]["mean"], -0.97, delta=0.05)
+        self.assertAlmostEqual(psum["measure"]["psd"], 0.77, delta=0.03)
+
+        # Print (do not assert) separation/reliability lines next to Winsteps values
+        print("\n" + "=" * 70)
+        print("ITEM SUMMARY vs WINSTEPS TARGETS:")
+        print(f"  RaschLab Item REAL : RMSE {isum['real']['rmse']:.2f}, TRUE SD {isum['real']['true_sd']:.2f}, SEPARATION {isum['real']['separation']:.2f}, RELIABILITY {isum['real']['reliability']:.2f}")
+        print(f"  Winsteps Item REAL : RMSE 0.16, TRUE SD 0.71, SEPARATION 4.51, RELIABILITY 0.95")
+        print(f"  RaschLab Item MODEL: RMSE {isum['model']['rmse']:.2f}, TRUE SD {isum['model']['true_sd']:.2f}, SEPARATION {isum['model']['separation']:.2f}, RELIABILITY {isum['model']['reliability']:.2f}")
+        print(f"  Winsteps Item MODEL: RMSE 0.16, TRUE SD 0.71, SEPARATION 4.58, RELIABILITY 0.95")
+
+        print("\nPERSON SUMMARY vs WINSTEPS TARGETS:")
+        print(f"  RaschLab Person ({psum['count']} non-extreme, {psum['n_extreme_excluded']} extreme excluded):")
+        print(f"    MEASURE : MEAN {psum['measure']['mean']:.2f} (target -0.97), PSD {psum['measure']['psd']:.2f} (target 0.77), MIN {psum['measure']['min']:.2f} (target -3.38), MAX {psum['measure']['max']:.2f} (target 2.12)")
+        print(f"    MODEL SE: MEAN {psum['se']['mean']:.2f} (target 0.60)")
+        print(f"    REAL    : RMSE {psum['real']['rmse']:.2f} (target 0.63), TRUE SD {psum['real']['true_sd']:.2f} (target 0.44), SEPARATION {psum['real']['separation']:.2f} (target 0.70), RELIABILITY {psum['real']['reliability']:.2f} (target 0.33)")
+        print(f"    MODEL   : RMSE {psum['model']['rmse']:.2f} (target 0.61), TRUE SD {psum['model']['true_sd']:.2f} (target 0.47), SEPARATION {psum['model']['separation']:.2f} (target 0.77), RELIABILITY {psum['model']['reliability']:.2f} (target 0.37)")
+        print(f"    RAW SCORE TO MEASURE CORRELATION: {psum['raw_score_corr']:.2f} (target 0.93)")
+        print("=" * 70)
+
 
 if __name__ == "__main__":
     unittest.main()
+
