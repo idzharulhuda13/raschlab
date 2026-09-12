@@ -96,7 +96,9 @@ Output tables replicate the structure used in Winsteps and team analytical sprea
 - $\text{EXP}_j = \frac{\text{num}}{SD_b \cdot \text{conv}}$ (guards to 0.00 if denominator is 0)
 
 ### Person Table (`person_table.csv` / Sheet `person`)
-Columns 1–13 identical in layout to Item Table above, plus Column 14 (`PERSON`): person label string. Extreme persons are excluded from this table.
+Columns 1–13 identical in layout to Item Table above, plus Column 14 (`PERSON`): person label string, and Column 15 (`RANK`): the misfit rank letter. Extreme persons are excluded from this table.
+
+Row order follows Winsteps TABLE 6.1 with `--person-order misfit` (the default): reported non-extreme persons sorted by OUTFIT MNSQ descending, ties broken by entry ascending. `--person-order entry` restores input order. The `RANK` column carries `A`–`Z` on the 26 most misfitting rows and `a`–`z` on the 26 least misfitting ones (the last row is `a`), empty in between — the same letter sets as the golden TABLE 6.1, verified 26/26 at both tails on all six reference runs.
 
 **Person EXP. Formula** (for person $i$, over the $N$ items answered by person $i$):
 - $P_{ij} = 1 / (1 + \exp(-(b_i - d_j)))$
