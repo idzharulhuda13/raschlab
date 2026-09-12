@@ -1,5 +1,7 @@
 import argparse
+import contextlib
 import csv
+import io
 import os
 import sys
 import time
@@ -297,6 +299,62 @@ def run_analyze(
     print("============================================================")
 
 
+def run_analyze_all(dir_path, out_dir, mode="compat", out_format="both", digits=2, lconv=None):
+    failed = False
+    con_names = sorted(f for f in os.listdir(dir_path) if f.lower().endswith(".con"))
+    for con_name in con_names:
+        tag = os.path.splitext(con_name)[0].lower()
+        if tag.startswith("cfile_"):
+            tag = tag[len("cfile_"):]
+        con_path = os.path.join(dir_path, con_name)
+        buf = io.StringIO()
+        start_time = time.time()
+        try:
+            con = parse_control(con_path)
+
+            d = os.path.basename(str(con.get("DATA") or "").replace("\\", "/"))
+            d_cands = [d, f"{tag}_data.prn"]
+            if tag.endswith("_rev"):
+                d_cands.append(f"{tag[:-4]}_data.prn")
+            data_path = next((os.path.join(dir_path, c) for c in d_cands if c and os.path.isfile(os.path.join(dir_path, c))), os.path.join(dir_path, f"{tag}_data.prn"))
+            a = os.path.basename(str(con.get("IAFILE") or "").replace("\\", "/"))
+            anchors_path = os.path.join(dir_path, a) if a and os.path.isfile(os.path.join(dir_path, a)) else os.path.join(dir_path, f"iafile_{tag}.TXT")
+            if not os.path.isfile(anchors_path):
+                anchors_path = None
+            p = os.path.basename(str(con.get("PDFILE") or "").replace("\\", "/"))
+            pdfile_path = os.path.join(dir_path, p) if p and os.path.isfile(os.path.join(dir_path, p)) else os.path.join(dir_path, f"pdfile_{tag}.TXT")
+            if not os.path.isfile(pdfile_path):
+                pdfile_path = None
+
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+                run_analyze(
+                    con_path=con_path,
+                    data_path=data_path,
+                    out_dir=os.path.join(out_dir, tag),
+                    anchors_path=anchors_path,
+                    pdfile_path=pdfile_path,
+                    mode=mode,
+                    out_format=out_format,
+                    digits=digits,
+                    lconv=lconv,
+                )
+            text = buf.getvalue()
+            ni = np_rep = iters = "?"
+            for line in text.splitlines():
+                if line.startswith("NI "):
+                    ni = line.rsplit(":", 1)[-1].strip()
+                elif line.startswith("NP reported"):
+                    np_rep = line.rsplit(":", 1)[-1].strip()
+                elif line.startswith("Iterations"):
+                    iters = line.rsplit(":", 1)[-1].strip()
+            print(f"{tag}: items={ni} persons_reported={np_rep} iterations={iters} elapsed={time.time() - start_time:.2f}s")
+        except (Exception, SystemExit) as e:
+            failed = True
+            detail = [ln for ln in buf.getvalue().splitlines() if ln.strip()]
+            print(f"{tag}: ERROR: {e!r}" + (f" | {detail[-1]}" if detail else ""))
+    return failed
+
+
 def run_suggest_deletes(
     con_path,
     data_path,
@@ -480,6 +538,24 @@ def main(args=None):
         help="Person table row order (default: misfit)",
     )
 
+    analyze_all_parser = subparsers.add_parser("analyze-all")
+    analyze_all_parser.add_argument("--dir", required=True, help="Folder to scan for .CON files")
+    analyze_all_parser.add_argument("--out", required=True, help="Base output directory (one subfolder per run)")
+    analyze_all_parser.add_argument("--mode", choices=["compat", "exact"], default="compat", help="Estimation mode (default: compat)")
+    analyze_all_parser.add_argument("--format", choices=["csv", "xlsx", "both"], default="both", help="Output format (default: both)")
+    analyze_all_parser.add_argument(
+        "--digits",
+        type=int,
+        default=2,
+        help="Number of decimal digits for MEASURE and S.E. in item and person tables (default: 2)",
+    )
+    analyze_all_parser.add_argument(
+        "--lconv",
+        type=float,
+        default=None,
+        help="JMLE stop threshold for --mode compat (default 0.0125, calibrated against the six reference runs)",
+    )
+
     suggest_parser = subparsers.add_parser("suggest-deletes")
     suggest_parser.add_argument("--con", required=True, help="Path to control (.CON) file")
     suggest_parser.add_argument("--data", required=True, help="Path to data (.prn) file")
@@ -520,6 +596,16 @@ def main(args=None):
             out_dir=parsed.out,
         )
         sys.exit(0)
+    elif parsed.command == "analyze-all":
+        failed = run_analyze_all(
+            dir_path=parsed.dir,
+            out_dir=parsed.out,
+            mode=parsed.mode,
+            out_format=parsed.format,
+            digits=parsed.digits,
+            lconv=parsed.lconv,
+        )
+        sys.exit(1 if failed else 0)
     else:
         parser.print_help(sys.stderr)
         sys.exit(2)

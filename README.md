@@ -185,7 +185,34 @@ The console summary prints the account of persons: input, `NP reported (after de
 `REPORTED:`), `NP calibrated (minus extreme)`, lacking / deleted / extreme counts, anchors used, iterations, max
 change and wall time.
 
-### 2. `suggest-deletes`
+### 2. `analyze-all` — one folder, every subtest
+
+```bash
+python -m raschlab analyze-all --dir /tmp/reference --out /tmp/raschlab_batch --mode compat --format csv
+```
+
+Scans `--dir` for `*.CON` (case-insensitive, sorted by name), derives the run tag from the control-file
+name (stem, lowercased, leading `cfile_` stripped — so `cfile_penalaran_rev.CON` becomes `penalaran_rev`),
+resolves the data / anchors / person-delete files from the `.CON` entries by basename inside `--dir`
+(falling back to `<tag>_data.prn`, `iafile_<tag>.TXT`, `pdfile_<tag>.TXT`, then for a revisi run to the
+`_rev`-stripped data copy, e.g. `pemecahan_data.prn` for `pemecahan_rev`), and writes each run into
+`<out>/<tag>`. `--mode`, `--lconv`, `--format` and `--digits` behave exactly as in `analyze`.
+
+It prints one line per run (`tag, items, persons_reported, iterations, elapsed`), keeps going when a single
+run fails, and exits 1 if any run failed, 0 when all succeeded:
+
+```text
+kuantitatif: items=147 persons_reported=about two thousand iterations=3 elapsed=1.04s
+pemecahan: items=76 persons_reported=about two thousand iterations=6 elapsed=0.65s
+pemecahan_rev: items=76 persons_reported=about two thousand iterations=6 elapsed=1.82s
+penalaran: items=101 persons_reported=about two thousand iterations=14 elapsed=1.60s
+penalaran_rev: items=101 persons_reported=about two thousand iterations=15 elapsed=0.75s
+verbal: items=46 persons_reported=about two thousand iterations=12 elapsed=0.67s
+```
+
+The batch output is byte-identical to running `analyze` once per subtest.
+
+### 3. `suggest-deletes`
 
 ```bash
 python -m raschlab suggest-deletes \
@@ -208,7 +235,7 @@ suggested 17 candidates (min_infit=1.5, min_outfit=None, min_score=None, min_cou
 New candidates are listed first in `delete_candidates.csv`. The tool only proposes — it never overwrites an
 existing `PDFILE`.
 
-### 3. Regression harness
+### 4. Regression harness
 
 ```bash
 RASCHLAB_DATA_DIR=/tmp/reference .venv/bin/python tests/regression/compare_all_runs.py
