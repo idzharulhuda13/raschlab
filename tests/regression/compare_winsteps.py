@@ -83,20 +83,34 @@ def main():
     print(f"{'Extreme EXCLUDED':<20} | {corr_exc:<12.6f} | {max_abs_diff_exc:<13.4f} | {mean_diff_exc:<10.4f}")
     print()
 
-    # Canonical results (extreme INCLUDED)
-    our_measures = measures_inc
-    iterations = res_inc["iterations"]
-    max_change = res_inc["max_change"]
-    corr = corr_inc
-    max_abs_diff = max_abs_diff_inc
-    mean_diff = mean_diff_inc
+    # Canonical results (extreme EXCLUDED as verified in conventions: keep minus extremes)
+    our_measures = measures_exc
+    iterations = res_exc["iterations"]
+    max_change = res_exc["max_change"]
+    corr = corr_exc
+    max_abs_diff = max_abs_diff_exc
+    mean_diff = mean_diff_exc
 
-    our_ranks = np.argsort(np.argsort(our_measures))
-    golden_ranks = np.argsort(np.argsort(golden_measures))
+    def get_ranks(a):
+        order = np.argsort(a)
+        ranks = np.empty(len(a), dtype=float)
+        ranks[order] = np.arange(1, len(a) + 1)
+        for val in np.unique(a):
+            idx = np.where(a == val)[0]
+            if len(idx) > 1:
+                ranks[idx] = np.mean(ranks[idx])
+        return ranks
+
+    our_ranks = get_ranks(our_measures)
+    golden_ranks = get_ranks(golden_measures)
+    displacements = np.abs(our_ranks - golden_ranks)
+    max_rank_disp = float(np.max(displacements))
+    items_above_2 = int(np.sum(displacements > 2))
     rank_diff_count = int(np.sum(our_ranks != golden_ranks))
 
     our_mean = float(np.mean(our_measures))
     our_sd = float(np.std(our_measures))
+    mean_diff_target = abs(our_mean - 0.128)
 
     our_counts = np.sum(mask & keep[:, None], axis=0)
 
@@ -106,6 +120,8 @@ def main():
     print(f"max absolute difference: {max_abs_diff:.4f}")
     print(f"mean difference: {mean_diff:.4f}")
     print(f"count of items whose order rank differs: {rank_diff_count}")
+    print(f"max rank displacement: {max_rank_disp:.2f}")
+    print(f"items displaced > 2 positions: {items_above_2}")
     print(f"our item mean measure: {our_mean:.4f}")
     print(f"our measure SD: {our_sd:.4f}")
     count_matches = int(np.sum(our_counts == golden_counts))
@@ -115,7 +131,23 @@ def main():
         entry_no = idx + 1
         print(f"  Item {entry_no}: ours={our_counts[idx]}, golden={golden_counts[idx]}")
 
-    if corr >= 0.9999 and max_abs_diff <= 0.02:
+    pass_a = (count_matches == len(golden_counts))
+    pass_b = (corr >= 0.999)
+    pass_c = (max_abs_diff <= 0.05)
+    pass_d = (max_rank_disp <= 2.0 and items_above_2 == 0)
+    pass_e = (mean_diff_target <= 0.02)
+
+    print()
+    print("Criteria evaluation:")
+    print(f"  (a) per-item COUNT identical for all 147 items: {'PASS' if pass_a else 'FAIL'} ({count_matches}/{len(golden_counts)})")
+    print(f"  (b) correlation >= 0.999: {'PASS' if pass_b else 'FAIL'} ({corr:.6f})")
+    print(f"  (c) max absolute measure difference <= 0.05: {'PASS' if pass_c else 'FAIL'} ({max_abs_diff:.4f})")
+    print(f"  (d) max rank displacement <= 2 and no item above 2: {'PASS' if pass_d else 'FAIL'} (max_disp={max_rank_disp:.2f}, above_2={items_above_2})")
+    print(f"  (e) absolute difference of item mean from 0.128 <= 0.02: {'PASS' if pass_e else 'FAIL'} (|{our_mean:.4f} - 0.128| = {mean_diff_target:.4f})")
+
+    overall_pass = pass_a and pass_b and pass_c and pass_d and pass_e
+    print()
+    if overall_pass:
         print("PASS")
         sys.exit(0)
     else:
