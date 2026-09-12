@@ -49,6 +49,31 @@ stops mid-iteration on its own criterion and our iteration path is not bit-compa
 calibrated stop lands closer to their truncated solution than their own rule does. Making this bit-identical
 means reproducing their update arithmetic — research, not a constant.
 
+**Does the calibrated constant transfer to data it was not tuned on?** Measured by leave-one-run-out: pick the
+threshold that minimises the worst-case mean item-measure deviation over five runs, then score the held-out run
+with that threshold.
+
+| Held-out run | Threshold chosen on the other five | Its error | Its own best threshold | Its best error |
+|---|---|---|---|---|
+| kuantitatif | 0.0125 | 0.0064 | 0.008 | 0.0054 |
+| verbal | 0.0125 | 0.0126 | 0.014 | 0.0124 |
+| penalaran | 0.0125 | 0.0075 | 0.015 | 0.0040 |
+| pemecahan | 0.0125 | 0.0107 | 0.008 | 0.0107 |
+| penalaran_rev | 0.0125 | 0.0086 | 0.014 | 0.0026 |
+| pemecahan_rev | 0.014 | 0.0161 | 0.008 | 0.0146 |
+
+Within this design family (46–147 items, sparse matrix sampling, 1–4 anchors) the constant transfers: every
+held-out run stays inside **0.016 logit** mean deviation, and picking the threshold on the other five costs at
+most 0.006 logit against that run's own optimum. The optimum is flat and wide — 0.0125 to 0.016 are all
+acceptable, and the shipped 0.015 is inside it (0.0125 is a hair better on measures alone, 0.015 is 3–5× better
+on the fit columns, which is why it ships). The dangerous direction is *downward*: at 0.008 penalaran doubles
+(0.043), at the reference's own 0.005 it is 0.065 and at full convergence 0.115.
+
+Untested: a materially different design (complete data, very short tests, rating-scale/partial-credit data,
+different sparsity). The constants above are calibration, not a law — for a new batch, run one subtest through
+the reference tool and sweep `--lconv` with `tests/regression/compare_all_runs.py`. Five minutes, and it says
+whether the shipped value holds for that batch.
+
 ## 4. Standard errors and extreme scores
 
 | Item | Reference | raschlab | Status | Evidence |
