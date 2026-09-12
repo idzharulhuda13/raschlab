@@ -1,0 +1,15 @@
+&INST
+ITEM1 = 11 		; Starting column of item responses
+NI = 5 		; Number of items
+NAME1 = 1 		; Starting column for person label in data record
+NAMLEN = 8 	; Length of person label
+TOTALSCORE = YES ;
+DATA = C:\Users\TESTER\Documents\REFERENCE\referensi\Verbal\variants_data.prn;
+ILABEL = C:\Users\TESTER\Documents\REFERENCE\referensi\Verbal\variants_header.prn;
+KEY1 = BEBBD;
+CODES = ABCDE 	; matches the data
+MISSCORE = -1 ; EVERYTHING ELSE IN THE DATA SCORED 0
+IAFILE = C:\Users\TESTER\Documents\REFERENCE\referensi\Verbal\iafile_winpath.TXT;
+PDFILE = C:\Users\TESTER\Documents\REFERENCE\referensi\Verbal\pdfile_winpath.TXT;
+&END
+END LABELS

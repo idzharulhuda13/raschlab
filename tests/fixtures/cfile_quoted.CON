@@ -1,0 +1,9 @@
+&INST
+ITEM1 = 11 ; Starting column of item responses
+NI = 5 ; Number of items
+NAME1 = 1 ; Starting column for person label
+NAMLEN = 8 ; Length of person label
+KEY1 = BEBBD ; Scoring key
+DATA = "C:\Users\TESTER\referensi\Verbal\variants_data.prn"
+CODES = ABCDE
+&END

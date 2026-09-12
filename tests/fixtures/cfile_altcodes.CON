@@ -1,0 +1,9 @@
+&INST
+ITEM1 = 11 ; Starting column of item responses
+NI = 5 ; Number of items
+NAME1 = 1 ; Starting column for person label in data record
+NAMLEN = 8 ; Length of person label
+KEY1 = BEBBD ; Scoring key
+CODES = EDCBA ; the codes are listed in a different order than the data uses
+MISSCORE = 0 ; anything else in the data scored 0
+&END
