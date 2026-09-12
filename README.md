@@ -137,9 +137,11 @@ boundary flips, not missing conventions.
    `DATA=`/`ILABEL=`, `MISSCORE=`, reordered `CODES=`, quoted paths, a control file with no path entries) and
    `tests/test_control_variants.py`. The Windows-path variant was also run end to end: its `item_table_15.1.csv`
    is byte-identical to the canonical `verbal` output.
-9. CI: `.github/workflows/ci.yml` runs `python -m pytest tests -q` on push and pull request across Python
-   3.10/3.11/3.12 with `pip install -e ".[dev]"`; the reference data is absent there, so the data-dependent
-   tests skip (49 pass, 5 skip).
+9. CI: deliberately skipped (12 Sep 2026). A ready-to-use workflow was written and tested locally —
+   `python -m pytest tests -q` on push/PR across Python 3.10/3.11/3.12 with `pip install -e ".[dev]"`
+   (49 pass, 5 skip without the reference data) — but the repository token only carries `repo`, `gist`
+   and `read:org` scopes, so GitHub rejects any push touching `.github/workflows/`. The file is parked
+   outside the repo pending a `gh auth refresh -s workflow`.
 10. More synthetic tests: missing-response patterns, all-extreme person sets, single-category items, zero
     variance guards. Still open.
 11. Faster fit statistics: the per-row Python loops in `fit.py`, `report.py` and `distractor.py` are vectorised.
