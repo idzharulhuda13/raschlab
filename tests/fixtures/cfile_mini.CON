@@ -1,0 +1,9 @@
+&INST
+ITEM1 = 19 ; First item response column
+NI = 5 ; Number of items
+NAME1 = 1
+NAMLEN = 16 ; Person label length
+KEY1 = ABCDE ; Scoring key
+CODES = ABCDE
+MISSCORE = -1 ; Score for missing data
+&END
