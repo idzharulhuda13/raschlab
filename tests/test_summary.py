@@ -64,6 +64,48 @@ class TestSummary(unittest.TestCase):
         self.assertEqual(psum["n_extreme_excluded"], 2)
         self.assertEqual(psum["count"], 2)
 
+    def test_real_vs_model_separation_synthetic(self):
+        # Synthetic hand-computable fixtures targeting Winsteps benchmark separation values
+        # Item: observed_sd = 0.73, model SE = 0.1557 -> model sep = 4.58, rel = 0.95
+        # inflated real SE -> real sep = 4.51, rel = 0.95
+        item_measures = np.array([-0.73, 0.73])
+        item_stats = {
+            "se": np.array([0.1557, 0.1557]),
+            "infit_mnsq": np.array([1.0, (0.1604 / 0.1557) ** 2]),
+            "outfit_mnsq": np.array([1.0, 1.0]),
+        }
+        isum = item_summary(item_stats, item_measures)
+        # Assert item REAL numbers: RMSE .16 / TRUE SD .71 / SEPARATION 4.51 / REL .95
+        self.assertAlmostEqual(isum["real"]["rmse"], 0.16, places=2)
+        self.assertAlmostEqual(isum["real"]["true_sd"], 0.71, places=2)
+        self.assertAlmostEqual(isum["real"]["separation"], 4.51, delta=0.02)
+        self.assertAlmostEqual(isum["real"]["reliability"], 0.95, places=2)
+        # Assert item MODEL numbers: RMSE .16 / TRUE SD .71 / SEPARATION 4.58 / REL .95
+        self.assertAlmostEqual(isum["model"]["rmse"], 0.16, places=2)
+        self.assertAlmostEqual(isum["model"]["true_sd"], 0.71, places=2)
+        self.assertAlmostEqual(isum["model"]["separation"], 4.58, delta=0.02)
+        self.assertAlmostEqual(isum["model"]["reliability"], 0.95, places=2)
+
+        # Person: observed_sd = 0.77, model SE = 0.61 -> model sep = 0.77, rel = 0.37
+        # inflated real SE -> real sep = 0.70, rel = 0.33
+        person_measures = np.array([-0.77, 0.77])
+        person_stats = {
+            "se": np.array([0.61, 0.61]),
+            "infit_mnsq": np.array([1.0, (0.6496 / 0.61) ** 2]),
+            "outfit_mnsq": np.array([1.0, 1.0]),
+        }
+        psum = person_summary(person_stats, person_measures)
+        # Assert person REAL numbers: RMSE .63 / TRUE SD .44 / SEPARATION .70 / REL .33
+        self.assertAlmostEqual(psum["real"]["rmse"], 0.63, places=2)
+        self.assertAlmostEqual(psum["real"]["true_sd"], 0.44, places=2)
+        self.assertAlmostEqual(psum["real"]["separation"], 0.70, delta=0.02)
+        self.assertAlmostEqual(psum["real"]["reliability"], 0.33, places=2)
+        # Assert person MODEL numbers: RMSE .61 / TRUE SD .47 / SEPARATION .77 / REL .37
+        self.assertAlmostEqual(psum["model"]["rmse"], 0.61, places=2)
+        self.assertAlmostEqual(psum["model"]["true_sd"], 0.47, places=2)
+        self.assertAlmostEqual(psum["model"]["separation"], 0.77, delta=0.02)
+        self.assertAlmostEqual(psum["model"]["reliability"], 0.37, places=2)
+
 
 if __name__ == "__main__":
     unittest.main()

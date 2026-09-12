@@ -116,12 +116,8 @@ def item_summary(item_stats, item_measures):
     outfit = np.asarray(item_stats["outfit_mnsq"], dtype=float)
 
     model_sep = separation_stats(measures, se)
-
-    # ponytail: Winsteps inflates real RMSE based on misfit / unmodeled error.
-    # The exact rater/misfit inflation formula is not published by Winsteps;
-    # here real_rmse is simplified to root-mean-square of model SE.
-    # Upgrade path: add Winsteps-compatible real RMSE inflation heuristics.
-    real_sep = separation_stats(measures, se)
+    se_real = se * np.maximum(1.0, np.sqrt(infit))
+    real_sep = separation_stats(measures, se_real)
 
     return {
         "count": len(measures),
@@ -203,10 +199,8 @@ def person_summary(person_stats, person_measures, scores=None, counts=None, keep
             outfit = outfit[kp]
 
     model_sep = separation_stats(pm, se)
-
-    # ponytail: Real RMSE is simplified to model RMSE here.
-    # Winsteps inflates real RMSE for person unmodeled variation.
-    real_sep = separation_stats(pm, se)
+    se_real = se * np.maximum(1.0, np.sqrt(infit))
+    real_sep = separation_stats(pm, se_real)
 
     corr = 0.0
     if scores_valid is not None and len(scores_valid) == len(pm):
