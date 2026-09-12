@@ -25,7 +25,7 @@ def extreme_measures(mask, item_measures, scores):
     measures = np.zeros(P, dtype=float)
     counts = np.sum(mask, axis=1)
 
-    # Rows needing a bisection: zero-score (target 0.5) or perfect (target count-0.5)
+    # Rows needing a bisection: zero-score (target 0.3) or perfect (target count-0.3)
     at_min = (scores == 0) & (counts > 0)
     at_max = (scores == counts) & (counts > 0)
     rows = np.where(at_min | at_max)[0]
@@ -36,7 +36,7 @@ def extreme_measures(mask, item_measures, scores):
     # only the Python loop over persons is replaced by one over the 100 iterations.
     sub_mask = mask[rows]
     sub_d = np.where(sub_mask, d[None, :], 0.0)
-    target = np.where(at_min[rows], 0.5, counts[rows] - 0.5)
+    target = np.where(at_min[rows], 0.3, counts[rows] - 0.3)
 
     lo = np.full(rows.size, -40.0, dtype=float)
     hi = np.full(rows.size, 40.0, dtype=float)

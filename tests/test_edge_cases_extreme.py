@@ -153,7 +153,7 @@ def test_every_person_extreme_item_table_is_finite_and_pinned(tmp_path):
         assert row[1:3] == ["3", "6"]  # TOTAL SCORE, TOTAL COUNT
         assert row[3] == "0.00"        # JMLE MEASURE
         assert row[4] == "1000000.00"  # MODEL S.E.
-        assert row[5:11] == ["0.00", "0.00", "0.00", "0.00", "1.00", "0.67"]
+        assert row[5:11] == ["0.00", "0.00", "0.00", "0.00", "1.00", "0.80"]
         assert row[11:13] == ["0.0", "0.0"]
 
 
