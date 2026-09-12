@@ -24,9 +24,9 @@ def fit_stats(X, mask, item_measures, person_measures, keep=None, anchors=None):
     -------
     dict
         'item': dict of np.ndarray
-            'infit_mnsq', 'infit_zstd', 'outfit_mnsq', 'outfit_zstd', 'se'
+            'infit_mnsq', 'infit_zstd', 'outfit_mnsq', 'outfit_zstd', 'se', 'exp'
         'person': dict of np.ndarray
-            'infit_mnsq', 'infit_zstd', 'outfit_mnsq', 'outfit_zstd', 'se'
+            'infit_mnsq', 'infit_zstd', 'outfit_mnsq', 'outfit_zstd', 'se', 'exp'
     """
     X = np.asarray(X, dtype=float)
     mask = np.asarray(mask, dtype=bool)
@@ -99,6 +99,25 @@ def fit_stats(X, mask, item_measures, person_measures, keep=None, anchors=None):
     var_infit_num = np.sum(np.where(mask_kept, W * (1.0 - 4.0 * W), 0.0), axis=0)
     var_infit_item = var_infit_num / (sum_W_safe ** 2)
 
+    # Expected point-measure correlation for items (EXP.)
+    # For item j, i ranges over calibration persons who actually answered item j
+    I = len(d)
+    item_exp = np.zeros(I, dtype=float)
+    for j in range(I):
+        m_j = mask_kept[:, j]
+        b_j = b_kept[m_j]
+        N_j = len(b_j)
+        if N_j > 0:
+            P_j = P[m_j, j]
+            b_bar = np.mean(b_j)
+            P_bar = np.mean(P_j)
+            num = np.mean((b_j - b_bar) * (P_j - P_bar))
+            conv = np.sqrt(P_bar * (1.0 - P_bar))
+            sd_b = np.std(b_j, ddof=0)
+            denom = sd_b * conv
+            if denom > 1e-12:
+                item_exp[j] = num / denom
+
     item_outfit_zstd = _calc_zstd(item_outfit_mnsq, var_outfit_item)
     item_infit_zstd = _calc_zstd(item_infit_mnsq, var_infit_item)
 
@@ -128,6 +147,27 @@ def fit_stats(X, mask, item_measures, person_measures, keep=None, anchors=None):
     var_infit_num_p = np.sum(np.where(mask_p, W_p * (1.0 - 4.0 * W_p), 0.0), axis=1)
     var_infit_person = var_infit_num_p / (sum_W_p_safe ** 2)
 
+    # Expected point-measure correlation for persons (EXP.)
+    # For person i (non-extreme), j ranges over items answered by that person
+    P_non_ext = len(mask_p)
+    b_p = b_kept[non_extreme]
+    P_p = P[non_extreme]
+    person_exp = np.zeros(P_non_ext, dtype=float)
+    for i in range(P_non_ext):
+        m_i = mask_p[i]
+        d_i = d[m_i]
+        N_i = len(d_i)
+        if N_i > 0:
+            P_i = P_p[i, m_i]
+            d_bar = np.mean(d_i)
+            P_bar = np.mean(P_i)
+            num = np.mean((d_i - d_bar) * (P_i - P_bar))
+            conv = np.sqrt(P_bar * (1.0 - P_bar))
+            sd_d = np.std(d_i, ddof=0)
+            denom = sd_d * conv
+            if denom > 1e-12:
+                person_exp[i] = -num / denom
+
     person_outfit_zstd = _calc_zstd(person_outfit_mnsq, var_outfit_person)
     person_infit_zstd = _calc_zstd(person_infit_mnsq, var_infit_person)
 
@@ -138,6 +178,7 @@ def fit_stats(X, mask, item_measures, person_measures, keep=None, anchors=None):
             "outfit_mnsq": item_outfit_mnsq,
             "outfit_zstd": item_outfit_zstd,
             "se": item_se,
+            "exp": item_exp,
         },
         "person": {
             "infit_mnsq": person_infit_mnsq,
@@ -145,5 +186,6 @@ def fit_stats(X, mask, item_measures, person_measures, keep=None, anchors=None):
             "outfit_mnsq": person_outfit_mnsq,
             "outfit_zstd": person_outfit_zstd,
             "se": person_se,
+            "exp": person_exp,
         },
     }

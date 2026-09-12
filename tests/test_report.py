@@ -269,6 +269,58 @@ class TestReport(unittest.TestCase):
             print(f"  {os.path.basename(path_option_csv)}: {size_option:,} bytes ({size_option} bytes)")
             print(f"  {os.path.basename(path_xlsx)}: {size_xlsx:,} bytes ({size_xlsx} bytes)")
 
+        # Verify EXP agreement against golden Winsteps output
+        hasil_path = os.path.join(data_dir, "kuantitatif_hasil.txt")
+        if os.path.exists(hasil_path):
+            import re
+            golden_items = {}
+            golden_persons = {}
+            with open(hasil_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            for i, line in enumerate(lines):
+                if "NUMBER  SCORE  COUNT  MEASURE" in line and "ITEM" in line:
+                    for tl in lines[i + 2:]:
+                        if not tl.startswith("|"):
+                            break
+                        parts = tl.replace("|", " ").split()
+                        if len(parts) >= 11 and parts[0].isdigit():
+                            entry = int(parts[0])
+                            golden_items[entry] = float(parts[10])
+                        elif len(parts) > 0 and not parts[0].isdigit():
+                            break
+                    break
+            for i, line in enumerate(lines):
+                if "NUMBER  SCORE  COUNT  MEASURE" in line and "PERSON" in line:
+                    for tl in lines[i + 2:]:
+                        if not tl.startswith("|"):
+                            break
+                        pipes = tl.split("|")
+                        if len(pipes) >= 7:
+                            part1 = pipes[1].split()
+                            if not part1 or not part1[0].isdigit():
+                                continue
+                            nums = re.findall(r"[-+]?\d*\.?\d+", pipes[4])
+                            lbl = pipes[6].strip()
+                            if len(nums) >= 2:
+                                golden_persons[lbl] = float(nums[1])
+                    break
+
+            if golden_items:
+                item_diffs = [
+                    abs(float(r["EXP."]) - golden_items[int(r["ENTRY"])])
+                    for r in i_rows
+                    if int(r["ENTRY"]) in golden_items
+                ]
+                self.assertLessEqual(max(item_diffs), 0.03 + 1e-5)
+
+            if golden_persons:
+                person_diffs = [
+                    abs(float(r["EXP."]) - golden_persons[r["PERSON"]])
+                    for r in p_rows
+                    if r["PERSON"] in golden_persons
+                ]
+                self.assertLessEqual(max(person_diffs), 0.01 + 1e-5)
+
     def test_table_number_formatting(self):
         X = np.array([[1.0], [0.0]])
         mask = np.ones((2, 1), dtype=bool)
@@ -288,7 +340,7 @@ class TestReport(unittest.TestCase):
         self.assertEqual(i_rows_2[0]["OUTFIT MNSQ"], "1.00")
         self.assertEqual(i_rows_2[0]["OUTFIT ZSTD"], "0.00")
         self.assertEqual(i_rows_2[0]["CORR."], "1.00")
-        self.assertEqual(i_rows_2[0]["EXP."], "")
+        self.assertEqual(i_rows_2[0]["EXP."], "0.50")
         self.assertEqual(i_rows_2[0]["OBS%"], "100.0")
         self.assertEqual(i_rows_2[0]["EXP%"], "75.0")
 

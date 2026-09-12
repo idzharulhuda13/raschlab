@@ -107,7 +107,7 @@ All item measure correlations against official Winsteps outputs exceed **0.9999*
 
 ## Known deviations from Winsteps
 
-- the EXP. column of the item/person tables is not implemented (left blank);
+- expected point-measure correlation (EXP.) achieves close agreement with Winsteps (max difference 0.023 for items, 0.006 for persons);
 - INFIT/OUTFIT ZSTD differ from Winsteps by up to ~0.3 because Winsteps uses its own centralised Wilson-Hilferty variance convention (MNSQ values match within 0.02, and those are the ones used for misfit decisions);
 - EXACT MATCH OBS% can differ by up to ~1.5 percentage points (different exact-match convention);
 - compat mode approximates Winsteps's iterated PROX start and stops at LCONV=0.005 (recommended by Winsteps for anchored analyses), so per-run item-measure differences are up to 0.075 logit (penalaran) and typically < 0.04;

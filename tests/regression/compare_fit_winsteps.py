@@ -57,6 +57,7 @@ def main():
     fit = fit_stats(X, mask, res["item_measures"], res["person_measures"], keep=keep, anchors=anchors)
     our_infit = fit["item"]["infit_mnsq"]
     our_outfit = fit["item"]["outfit_mnsq"]
+    our_item_exp = fit["item"]["exp"]
 
     # Load golden data
     with open(golden_path, "r", encoding="utf-8") as f:
@@ -64,6 +65,7 @@ def main():
     golden_by_entry = sorted(golden, key=lambda it: it["entry"])
     golden_infit = np.array([it["infit_mnsq"] for it in golden_by_entry], dtype=float)
     golden_outfit = np.array([it["outfit_mnsq"] for it in golden_by_entry], dtype=float)
+    golden_item_exp = np.array([it.get("ptmea_exp", 0.0) for it in golden_by_entry], dtype=float)
 
     # Metrics
     corr_infit = float(np.corrcoef(our_infit, golden_infit)[0, 1])
@@ -71,6 +73,7 @@ def main():
 
     max_diff_infit = float(np.max(np.abs(our_infit - golden_infit)))
     max_diff_outfit = float(np.max(np.abs(our_outfit - golden_outfit)))
+    max_diff_item_exp = float(np.max(np.abs(our_item_exp - golden_item_exp)))
 
     mean_our_infit = float(np.mean(our_infit))
     mean_gold_infit = float(np.mean(golden_infit))
@@ -86,6 +89,42 @@ def main():
     sd_our_outfit = float(np.std(our_outfit, ddof=0))
     sd_gold_outfit = float(np.std(golden_outfit, ddof=0))
 
+    # Person EXP comparison from kuantitatif_hasil.txt
+    hasil_path = os.path.join(data_dir, "kuantitatif_hasil.txt")
+    max_diff_person_exp = 0.0
+    if os.path.exists(hasil_path):
+        import re
+        golden_persons = {}
+        with open(hasil_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        for i, line in enumerate(lines):
+            if "NUMBER  SCORE  COUNT  MEASURE" in line and "PERSON" in line:
+                for tl in lines[i + 2:]:
+                    if not tl.startswith("|"):
+                        break
+                    pipes = tl.split("|")
+                    if len(pipes) >= 7:
+                        part1 = pipes[1].split()
+                        if not part1 or not part1[0].isdigit():
+                            continue
+                        nums = re.findall(r"[-+]?\d*\.?\d+", pipes[4])
+                        lbl = pipes[6].strip()
+                        if len(nums) >= 2:
+                            golden_persons[lbl] = float(nums[1])
+                break
+
+        is_extreme = (counts == 0) | (scores == 0) | (scores == counts)
+        valid = keep & ~is_extreme
+        valid_indices = np.where(valid)[0]
+        person_diffs = []
+        for p_idx, idx in enumerate(valid_indices):
+            lbl = labels[idx].strip()
+            if lbl in golden_persons:
+                diff_exp = abs(fit["person"]["exp"][p_idx] - golden_persons[lbl])
+                person_diffs.append(diff_exp)
+        if person_diffs:
+            max_diff_person_exp = float(max(person_diffs))
+
     print("=" * 65)
     print("WINSTEPS FIT COMPARISON (Kuantitatif 147 Items)")
     print("=" * 65)
@@ -99,6 +138,8 @@ def main():
     print(f"{'OUTFIT MNSQ SD':<25} {sd_our_outfit:<12.4f} {sd_gold_outfit:<12.4f} {abs(sd_our_outfit - sd_gold_outfit):<12.4f}")
     print(f"{'INFIT MNSQ Max |Diff|':<25} {max_diff_infit:<12.4f} {'0.0000':<12} {max_diff_infit:<12.4f}")
     print(f"{'OUTFIT MNSQ Max |Diff|':<25} {max_diff_outfit:<12.4f} {'0.0000':<12} {max_diff_outfit:<12.4f}")
+    print(f"{'ITEM EXP Max |Diff|':<25} {max_diff_item_exp:<12.4f} {'0.0000':<12} {max_diff_item_exp:<12.4f}")
+    print(f"{'PERSON EXP Max |Diff|':<25} {max_diff_person_exp:<12.4f} {'0.0000':<12} {max_diff_person_exp:<12.4f}")
     print("=" * 65)
 
     passed = (
@@ -106,10 +147,12 @@ def main():
         and corr_outfit >= 0.98
         and diff_mean_infit <= 0.05
         and diff_mean_outfit <= 0.05
+        and max_diff_item_exp <= 0.03
+        and max_diff_person_exp <= 0.01
     )
 
     if passed:
-        print("RESULT: PASS (both per-item correlations >= 0.98 and mean differences <= 0.05)")
+        print("RESULT: PASS (fit correlations >= 0.98, mean diffs <= 0.05, item EXP <= 0.03, person EXP <= 0.01)")
         sys.exit(0)
     else:
         print("RESULT: FAIL (did not meet pass criteria)")

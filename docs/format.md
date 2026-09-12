@@ -83,12 +83,28 @@ Output tables replicate the structure used in Winsteps and team analytical sprea
 | 8 | OUTFIT MNSQ | Outlier-sensitive mean square residual |
 | 9 | OUTFIT ZSTD | Standardized outfit (Wilson-Hilferty transformation) |
 | 10 | PTMEASUR-AL CORR. | Point-measure correlation between item and person ability |
-| 11 | PTMEASUR-AL EXP. | Expected point-measure correlation (empty string) |
+| 11 | PTMEASUR-AL EXP. | Expected point-measure correlation (see formula below) |
 | 12 | EXACT MATCH OBS% | Observed percentage of exact response matches |
 | 13 | EXACT MATCH EXP% | Model expected percentage of exact response matches |
 
+**Item EXP. Formula** (for item $j$, over the $N$ calibrated persons who answered item $j$):
+- $P_{ij} = 1 / (1 + \exp(-(b_i - d_j)))$
+- $\bar{b} = \text{mean}(b_i)$, $\bar{P} = \text{mean}(P_{ij})$
+- $\text{num} = \frac{1}{N} \sum_i (b_i - \bar{b})(P_{ij} - \bar{P})$
+- $\text{conv} = \sqrt{\bar{P}(1 - \bar{P})}$
+- $SD_b = \text{std}(b_i, \text{ddof}=0)$ (population standard deviation)
+- $\text{EXP}_j = \frac{\text{num}}{SD_b \cdot \text{conv}}$ (guards to 0.00 if denominator is 0)
+
 ### Person Table (`person_table_17.1.csv` / Sheet `17.1`)
-Columns 1–13 identical to Item Table above, plus Column 14 (`PERSON`): person label string. Extreme persons are excluded from this table.
+Columns 1–13 identical in layout to Item Table above, plus Column 14 (`PERSON`): person label string. Extreme persons are excluded from this table.
+
+**Person EXP. Formula** (for person $i$, over the $N$ items answered by person $i$):
+- $P_{ij} = 1 / (1 + \exp(-(b_i - d_j)))$
+- $\bar{d} = \text{mean}(d_j)$, $\bar{P} = \text{mean}(P_{ij})$
+- $\text{num} = \frac{1}{N} \sum_j (d_j - \bar{d})(P_{ij} - \bar{P})$
+- $\text{conv} = \sqrt{\bar{P}(1 - \bar{P})}$
+- $SD_d = \text{std}(d_j, \text{ddof}=0)$ (population standard deviation)
+- $\text{EXP}_i = -\frac{\text{num}}{SD_d \cdot \text{conv}}$ (leading minus aligns with item easiness; guards to 0.00 if denominator is 0)
 
 ### Option / Distractor Table (`option_table_15.3.csv` / Sheet `15.3`)
 | Column | Name | Description |

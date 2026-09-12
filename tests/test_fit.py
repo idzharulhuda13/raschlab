@@ -55,6 +55,50 @@ class TestFit(unittest.TestCase):
         res_10 = fit_stats(X[:, :10], mask[:, :10], d[:10], b)
         self.assertLess(float(np.mean(res["person"]["se"])), float(np.mean(res_10["person"]["se"])))
 
+    def test_expected_correlation_synthetic(self):
+        # Small hand-checkable dataset:
+        # 3 persons with b = [-1.0, 0.0, 1.0]
+        # 3 items with d = [-1.0, 0.0, 1.0]
+        # Hand calculation for middle item (d=0.0):
+        # P_i = 1 / (1 + exp(-b_i)) = [0.26894142, 0.5, 0.73105858]
+        # b_bar = 0.0, P_bar = 0.5, conv = sqrt(0.5 * 0.5) = 0.5
+        # num = (1/3) * ((-1)*(-0.23105858) + 0 + 1*(0.23105858)) = 0.15403905
+        # SD_b = sqrt(2/3) = 0.81649658
+        # EXP = num / (SD_b * conv) = 0.37731708
+        b = np.array([-1.0, 0.0, 1.0])
+        d = np.array([-1.0, 0.0, 1.0])
+        # Non-extreme responses for the 3 persons (scores: 1, 2, 2 out of 3)
+        X = np.array([
+            [1.0, 0.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [1.0, 1.0, 0.0],
+        ])
+        mask = np.ones((3, 3), dtype=bool)
+
+        res = fit_stats(X, mask, d, b)
+
+        expected_hand_val = 0.37731707889083826
+        # Item EXP for middle item (index 1, d=0.0)
+        self.assertAlmostEqual(res["item"]["exp"][1], expected_hand_val, places=6)
+        self.assertGreater(res["item"]["exp"][1], 0.0)
+
+        # Person EXP for middle person (index 1, b=0.0)
+        self.assertAlmostEqual(res["person"]["exp"][1], expected_hand_val, places=6)
+        self.assertGreater(res["person"]["exp"][1], 0.0)
+
+        # Perfectly fitting person and item give positive EXP
+        self.assertTrue(np.all(res["item"]["exp"] > 0.0))
+        self.assertTrue(np.all(res["person"]["exp"] > 0.0))
+
+        # Guard: when person abilities or item difficulties have 0 variance, EXP is 0.0
+        b_zero_var = np.zeros(3)
+        res_zero_b = fit_stats(X, mask, d, b_zero_var)
+        self.assertTrue(np.all(res_zero_b["item"]["exp"] == 0.0))
+
+        d_zero_var = np.zeros(3)
+        res_zero_d = fit_stats(X, mask, d_zero_var, b)
+        self.assertTrue(np.all(res_zero_d["person"]["exp"] == 0.0))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -169,9 +169,22 @@ def item_table_rows(
         else:
             corr_val = 0.0
 
-        # ponytail: expected point-measure correlation (EXP.) is not implemented yet.
-        # Convention is unsupported; writing empty string "".
-        exp_corr = ""
+        # Expected point-measure correlation (EXP.)
+        if fit_item is not None and "exp" in fit_item and fit_item["exp"] is not None:
+            exp_val = float(fit_item["exp"][j])
+        elif len(b_resp) > 0:
+            diff = b_resp - d[j]
+            P_j = 1.0 / (1.0 + np.exp(-np.clip(diff, -30.0, 30.0)))
+            b_bar = np.mean(b_resp)
+            P_bar = np.mean(P_j)
+            num = np.mean((b_resp - b_bar) * (P_j - P_bar))
+            conv = np.sqrt(P_bar * (1.0 - P_bar))
+            sd_b = np.std(b_resp, ddof=0)
+            denom = sd_b * conv
+            exp_val = float(num / denom) if denom > 1e-12 else 0.0
+        else:
+            exp_val = 0.0
+        exp_corr = _fmt(exp_val, 2)
 
         # Exact match percentages: OBS% and EXP%
         if len(b_resp) > 0:
@@ -297,9 +310,22 @@ def person_table_rows(
             else:
                 corr_val = 0.0
 
-            # ponytail: expected point-measure correlation (EXP.) is not implemented yet.
-            # Convention is unsupported; writing empty string "".
-            exp_corr = ""
+            # Expected point-measure correlation (EXP.)
+            if fit_person is not None and "exp" in fit_person and fit_person["exp"] is not None:
+                exp_val = float(fit_person["exp"][p_idx])
+            elif len(d_i) > 0:
+                diff = pm[i] - d_i
+                P_i = 1.0 / (1.0 + np.exp(-np.clip(diff, -30.0, 30.0)))
+                d_bar = np.mean(d_i)
+                P_bar = np.mean(P_i)
+                num = np.mean((d_i - d_bar) * (P_i - P_bar))
+                conv = np.sqrt(P_bar * (1.0 - P_bar))
+                sd_d = np.std(d_i, ddof=0)
+                denom = sd_d * conv
+                exp_val = float(-num / denom) if denom > 1e-12 else 0.0
+            else:
+                exp_val = 0.0
+            exp_corr = _fmt(exp_val, 2)
 
             diff = pm[i] - d_i
             P_i = 1.0 / (1.0 + np.exp(-np.clip(diff, -30.0, 30.0)))
@@ -309,7 +335,7 @@ def person_table_rows(
             exp_pct = float(np.mean(np.maximum(P_i, 1.0 - P_i)) * 100)
         else:
             corr_val = 0.0
-            exp_corr = ""
+            exp_corr = _fmt(0.0, 2)
             obs_pct = 0.0
             exp_pct = 0.0
 
