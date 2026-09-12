@@ -43,16 +43,17 @@ the test suite.
 | Item anchors (`IAFILE`) and person delete list (`PDFILE`) | done, verified |
 | Fit statistics (Infit/Outfit MNSQ + ZSTD, model & real S.E.) | done, verified |
 | Separation / reliability / summary blocks | done, verified (item REAL SEP 4.51 REL .95; person REAL SEP .70 REL .33) |
-| Point-measure correlation (CORR.) and expected value (EXP.) | done, verified (EXP max diff 0.023 item / 0.006 person) |
+| Point-measure correlation (CORR.) and expected value (EXP.) | done, verified (EXP max diff 0.02 item — 0.23 at one near-extreme item — / 0.006 person) |
 | Option/distractor table 15.3 (count, %, ability mean, P.SD, S.E., fit, PTMA, `MISSING ***` row) | done, verified row-by-row vs item 47 and 48 |
 | Output writers: CSV + XLSX in the team's sheet layout (two-row header, 15.1 / 15.3 / person / summary tabs) | done |
 | CLI: `analyze`, `analyze-all`, `suggest-deletes`, regression harness | done |
-| Tests | 70 passing with the reference data (5 skipped when `/tmp/reference` is absent) |
+| Reference convergence rules (LCONV/RCONV, PROX 0.5-logit range rule) pinned by a golden fixture | done — `tests/regression/test_golden_convergence.py` |
+| Tests | 82 passing with the reference data (5 skipped when `/tmp/reference` is absent) |
 
 ### Estimation modes
 
 - `--mode compat` (**default**) reproduces Winsteps's own estimation path: iterated Cohen PROX start plus the
-  "logistic ogive between two points" JMLE update, stopping at the calibrated threshold `--lconv 0.0125`.
+  "logistic ogive between two points" JMLE update, stopping at the calibrated threshold `--lconv 0.015`.
 - `--mode exact` runs our own Newton-Raphson JMLE to the exact likelihood fixed point. Useful as a reference, but
   it sits further from Winsteps (see the parity table) because Winsteps stops iterating earlier.
 
@@ -75,31 +76,63 @@ Item-measure correlations all exceed **0.9999**; maximum absolute differences (l
 | Run | Items | Anchors | Calibrated persons | Compat max \|d\| | Exact max \|d\| |
 |---|---|---|---|---|---|
 | kuantitatif | 147 | 3 | about two thousand | **0.0226** | 0.0313 |
-| verbal | 46 | 1 | about two thousand | **0.0303** | 0.0523 |
-| penalaran | 101 | 2 | about two thousand | **0.0145** | 0.1153 |
-| pemecahan | 76 | 4 | about two thousand | **0.0253** | 0.0271 |
-| penalaran_rev | 101 | 2 | about two thousand | **0.0172** | 0.1133 |
-| pemecahan_rev | 76 | 4 | 2283 | **0.0316** | 0.0357 |
+| verbal | 46 | 1 | about two thousand | **0.0285** | 0.0523 |
+| penalaran | 101 | 2 | about two thousand | **0.0105** | 0.1153 |
+| pemecahan | 76 | 4 | about two thousand | **0.0251** | 0.0271 |
+| penalaran_rev | 101 | 2 | about two thousand | **0.0090** | 0.1133 |
+| pemecahan_rev | 76 | 4 | 2283 | **0.0314** | 0.0357 |
 
-Maximum rank displacement is 3 positions (kuantitatif), 2 or less everywhere else. The `0.0125` stop threshold is
+Maximum rank displacement is 3 positions (kuantitatif), 2 or less everywhere else. The `0.015` stop threshold is
 **calibrated** against those six runs — not copied from the Winsteps manual — because our iteration path differs
-from theirs. `--lconv` exposes it.
+from theirs (see *Reference convergence rules* below). `--lconv` exposes it.
 
 Verified exact agreements: item COUNT per item, number of deleted persons, `REPORTED:` person count, item and
 person measure correlations, anchor values, extreme/lacking counts, and the option table of items 47/48 including
 the `MISSING ***` row (count 2107 / 2109).
 
+### Reference convergence rules (read from Winsteps's own convergence report)
+
+Winsteps prints Table 0.2, a per-iteration convergence report, inside each `<subtes>_hasil` file. Parsed for all
+six reference runs it gives the rules its documentation states:
+
+- **JMLE stop rule:** `LCONV=.005` or `RCONV=0.1` (`CONVERGE=E`, the default, takes whichever fires first), where
+  the logit change and the score residual are each the maximum over **persons and items**. The last iteration of
+  all six runs is exactly the first iteration meeting `LCONV=.005`; `RCONV` never binds here (final score
+  residuals 0.26–0.39).
+- **PROX stop rule:** the PROX phase ends when the growth of *both* the top-5-minus-bottom-5 person range and
+  item range drops below **0.5 logits**. That reproduces the phase lengths of all six runs exactly
+  (3 / 6 / 3 / 3 / 3 / 4 iterations).
+
+Both rules are pinned by `tests/regression/golden_convergence.json` (aggregate per-iteration numbers only — no
+student data) and `tests/regression/test_golden_convergence.py`.
+
+**They are deliberately NOT used as raschlab's stop rule.** Measured: adopting `LCONV=.005` makes parity 9× worse
+on penalaran (mean item-measure difference 0.0075 → 0.065 logit), and cutting PROX to Winsteps's iteration counts
+makes pemecahan worse too (0.084 → 0.328 at iteration 2). The cause is that our per-iteration update path is not
+Winsteps's: the item that dominates the maximum change differs (ours #36/#40/#137/#96, theirs #108/#109/#84/#23)
+and our changes decay ≈0.7× per iteration against their ≈0.93×. The fitted `0.015` is what minimises the
+worst-case deviation per column across those six runs, so it is the right trade-off until the update itself is
+reversed — see *Known deviations*.
+
 ### Known deviations
 
-Measured against the golden tables of all six runs (hundreds of items) on 12 Sep 2026, worst case per column:
+Measured against the golden tables of all six runs (hundreds of items), worst case per column, with the shipped
+`--lconv 0.015`:
 
-- `MEASURE` 0.03 logit, `S.E.` 0.01, `CORR.` 0.05 (mean 0.007), `EXP.` 0.23 (mean 0.029).
-- `INFIT/OUTFIT MNSQ` 0.06 (mean 0.002) and `ZSTD` 0.89 (mean 0.017 infit / 0.068 outfit). The remaining ZSTD gap
-  sits on the near-extreme items (|measure| > 6 logits, e.g. verbal items 10/12/14/32), where the fit statistic
-  inherits the precision of the item measure. MNSQ — the number used for misfit decisions — stays inside 0.06.
+- `MEASURE` 0.03 logit · `S.E.` 0.01 · `INFIT MNSQ` 0.01 · `OUTFIT MNSQ` 0.06 · `INFIT ZSTD` 0.08 ·
+  `OUTFIT ZSTD` 0.07 · `CORR.` 0.01 · `EXP.` 0.02 · `EXP%` 0.10 pp — every one of them inside the item S.E.
+  range of 0.13–0.30 logit.
+- **One item carries the rest of the worst case on its own:** verbal #14 (measure −6.05 vs −6.08), a near-extreme
+  item whose expected-score curve is nearly flat. There `OUTFIT ZSTD` 0.89, `CORR.` 0.05 and `EXP.` 0.23 — no
+  other item in the six runs exceeds 0.07 / 0.01 / 0.02. The statistic inherits the precision of the item
+  measure; MNSQ — the number used for misfit decisions — stays inside 0.06.
 - `EXACT MATCH OBS%` up to 1.6 pp (mean 0.05 pp) on items that have several responses at p ≈ 0.5: our measure
   differs from Winsteps in the third decimal and the modal decision flips (one response is 0.4 pp on a
   256-response item). `EXP%` is inside 0.10 pp, and on the verbal run OBS% matches Winsteps exactly.
+- Threshold sensitivity: `0.0125` (the previous default) was 3–5× worse on the penalaran runs — `INFIT ZSTD`
+  0.25 → 0.04 and `OUTFIT ZSTD` 0.18 → 0.05 at `0.015`, with item measures unchanged or slightly better. Going
+  *below* 0.0100 makes every column worse: our path converges faster than Winsteps's, so stopping earlier lands
+  closer to their truncated solution.
 - Person level (TABLE 6.1 rows): measure 0.03, MNSQ 0.04, `CORR.` 0.02; `OBS%` up to 8.4 pp on single
   persons whose response pattern is nearly extreme (one flipped response out of twelve) and outfit MNSQ up to
   ~78 on a handful of such persons, where z² = (x−p)²/(p(1−p)) explodes as p → 1.
@@ -202,7 +235,7 @@ Options:
 - `--anchors PATH` — item anchor file (`IAFILE=`), one `item_number value` per line.
 - `--pdfile PATH` — person delete file (`PDFILE=`), one 1-based person entry number per line.
 - `--mode compat|exact` — estimation path (`compat` default).
-- `--lconv FLOAT` — JMLE stop threshold for `--mode compat` (default 0.0125).
+- `--lconv FLOAT` — JMLE stop threshold for `--mode compat` (default 0.015, calibrated against the six reference runs).
 - `--format csv|xlsx|both` — output format (`both` default).
 - `--digits N` — decimals for MEASURE/S.E. in the item and person tables (default 2).
 - `--person-order entry|misfit` — person table order (`misfit` default: outfit MNSQ descending, the Winsteps
