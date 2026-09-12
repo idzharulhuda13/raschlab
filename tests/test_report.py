@@ -229,6 +229,14 @@ class TestReport(unittest.TestCase):
             item_measures=d,
         )
 
+        item_47_rows = {r["CODE"]: r for r in o_rows if r["NUMBER"] == 47}
+        item_47_ordered = [r["CODE"] for r in o_rows if r["NUMBER"] == 47]
+        self.assertEqual(item_47_ordered, ["D", "B", "C", "E", "A", "MISSING ***"])
+        self.assertEqual([item_47_rows[c]["DATA COUNT"] for c in ["D", "B", "C", "E", "A"]], [25, 77, 31, 43, 85])
+        self.assertEqual(item_47_rows["MISSING ***"]["DATA COUNT"], 2107)
+        item_48_missing = [r for r in o_rows if r["NUMBER"] == 48 and r["CODE"] == "MISSING ***"][0]
+        self.assertEqual(item_48_missing["DATA COUNT"], 2109)
+
         sum_item_dict = item_summary(fit["item"], d)
         sum_person_dict = person_summary(
             fit["person"],

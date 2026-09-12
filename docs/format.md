@@ -94,17 +94,28 @@ Columns 1–13 identical to Item Table above, plus Column 14 (`PERSON`): person 
 | Column | Name | Description |
 |---|---|---|
 | 1 | NUMBER | 1-based item entry number |
-| 2 | CODE | Option letter/character (e.g. `A`, `B`, `C`, `D`, `E`) |
-| 3 | VALUE | Scored value for this option (`1` for key, `0` otherwise) |
-| 4 | DATA COUNT | Number of persons selecting this option |
-| 5 | DATA% | Percentage of valid responders selecting this option |
-| 6 | ABILITY MEAN | Mean ability measure of responders selecting option |
+| 2 | CODE | Option letter/character (e.g. `A`, `B`, `C`, `D`, `E`) or `MISSING ***` |
+| 3 | VALUE | Scored value for this option (`1` for key, `0` otherwise, empty string for missing) |
+| 4 | DATA COUNT | Number of persons selecting this option (or missing responses) |
+| 5 | DATA% | Percentage of valid responders selecting option (or missing % over population) |
+| 6 | ABILITY MEAN | Mean ability measure of responders selecting option / missing responses |
 | 7 | ABILITY PSD | Population standard deviation of abilities |
-| 8 | SE MEAN | Mean standard error of ability |
-| 9 | INFT MNSQ | Infit mean square of the option |
-| 10 | OUTF MNSQ | Outfit mean square of the option |
-| 11 | PTMA CORR | Point-measure correlation for option choice |
+| 8 | SE MEAN | Standard error of ability (`P.SD / sqrt(count - 1)` for options, `P.SD / sqrt(DATA COUNT)` for missing) |
+| 9 | INFT MNSQ | Infit mean square of the option (blank for missing) |
+| 10 | OUTF MNSQ | Outfit mean square of the option (blank for missing) |
+| 11 | PTMA CORR | Point-measure correlation for option choice / missing responses |
 | 12 | ITEM | Item number label |
+
+**Conventions**:
+- **Row Order**: Options within each item are sorted by ascending `ABILITY MEAN` (the key typically appears last), followed by a single appended `MISSING ***` row per item.
+- **Missing Row**:
+  - `population`: Total persons excluding those listed in the `PDFILE` delete list (`P - len(deleted)`).
+  - `DATA COUNT`: `population - valid_responses` for that item.
+  - `DATA%`: `round(DATA COUNT / population * 100)`. Option percentages keep the item's valid count as denominator.
+  - `CODE`: `"MISSING ***"`, `VALUE`: `""`, `INFT MNSQ` and `OUTF MNSQ`: blank (`""`).
+  - `ABILITY MEAN`, `ABILITY PSD`, `PTMA CORR`: Computed over persons who have a person measure.
+  - `SE MEAN`: Standard error of the mean, `P.SD / sqrt(DATA COUNT)`.
+  - `ITEM`: Item entry number, identical to regular rows.
 
 ### Summary Table (`summary_table.csv` / Sheet `summary`)
 Contains summary statistics for items and persons (counts, mean/SEM/P.SD/min/max measures and SEs, infit/outfit MNSQ means and SDs, real and model RMSE/separation/reliability, raw-score-to-measure correlation, and person exclusion counts).

@@ -19,7 +19,22 @@ class TestDistractor(unittest.TestCase):
 
         table = option_table(X, mask, rows, key, person_measures, keep=keep)
 
-        self.assertEqual(len(table), 3)
+        self.assertEqual(len(table), 4)
+
+        # Sorted by ascending ability mean, with MISSING row last
+        codes = [row["CODE"] for row in table]
+        self.assertEqual(codes, ["B", "C", "A", "MISSING ***"])
+        means = [row["ABILITY_MEAN"] for row in table[:3]]
+        self.assertEqual(means, sorted(means))
+
+        # MISSING row structure
+        missing_row = table[3]
+        self.assertEqual(missing_row["CODE"], "MISSING ***")
+        self.assertEqual(missing_row["VALUE"], "")
+        self.assertEqual(missing_row["DATA_COUNT"], 0)
+        self.assertEqual(missing_row["DATA_PCT"], 0)
+        self.assertEqual(missing_row["INFT_MNSQ"], "")
+        self.assertEqual(missing_row["OUTF_MNSQ"], "")
 
         by_code = {row["CODE"]: row for row in table}
 

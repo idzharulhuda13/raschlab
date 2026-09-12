@@ -74,13 +74,18 @@ def main():
         "C": (31, 12, -1.17, 0.92, 0.17, 1.1, 1.0, -0.09),
         "E": (43, 16, -1.14, 0.67, 0.10, 0.9, 0.9, -0.10),
         "A": (85, 33, -0.39, 0.69, 0.08, 0.9, 0.8, 0.46),
+        "MISSING ***": (2107, 89, -1.00, 0.81, 0.02, "", "", -0.02),
     }
+
+    # Verify sort order: ascending ability mean, with MISSING row last
+    item_47_order = [r["CODE"] for r in table if r["NUMBER"] == 47]
+    expected_order = ["D", "B", "C", "E", "A", "MISSING ***"]
 
     print("=" * 88)
     print("WINSTEPS TABLE 15.3 DISTRACTOR COMPARISON FOR ITEM 47 (contoh_kode_kolom)")
     print("=" * 88)
     print(
-        f"{'CODE':<5} {'SOURCE':<10} {'COUNT':<7} {'PCT':<5} {'MEAN':<8} "
+        f"{'CODE':<12} {'SOURCE':<10} {'COUNT':<7} {'PCT':<5} {'MEAN':<8} "
         f"{'P.SD':<7} {'SE MEAN':<8} {'INFIT':<7} {'OUTFIT':<7} {'PTMA':<7}"
     )
     print("-" * 88)
@@ -88,7 +93,11 @@ def main():
     all_passed = True
     failure_messages = []
 
-    for code in ["D", "B", "C", "E", "A"]:
+    if item_47_order != expected_order:
+        all_passed = False
+        failure_messages.append(f"Item 47 sort order mismatch: {item_47_order} != {expected_order}")
+
+    for code in expected_order:
         if code not in item_47_rows:
             all_passed = False
             failure_messages.append(f"Code {code} missing from RaschLab option table")
@@ -106,19 +115,22 @@ def main():
 
         tgt_cnt, tgt_pct, tgt_mean, tgt_psd, tgt_se, tgt_infit, tgt_outfit, tgt_ptma = tgt
 
+        infit_str = f"{infit:.2f}" if isinstance(infit, (int, float)) else str(infit)
+        outfit_str = f"{outfit:.2f}" if isinstance(outfit, (int, float)) else str(outfit)
+        tgt_infit_str = f"{tgt_infit:.2f}" if isinstance(tgt_infit, (int, float)) else str(tgt_infit)
+        tgt_outfit_str = f"{tgt_outfit:.2f}" if isinstance(tgt_outfit, (int, float)) else str(tgt_outfit)
+
         print(
-            f"{code:<5} {'RaschLab':<10} {cnt:<7} {pct:<5} {mean:<8.2f} "
-            f"{psd:<7.2f} {se_mean:<8.2f} {infit:<7.2f} {outfit:<7.2f} {ptma:<7.2f}"
+            f"{code:<12} {'RaschLab':<10} {cnt:<7} {pct:<5} {mean:<8.2f} "
+            f"{psd:<7.2f} {se_mean:<8.2f} {infit_str:<7} {outfit_str:<7} {ptma:<7.2f}"
         )
         print(
-            f"{'':<5} {'Winsteps':<10} {tgt_cnt:<7} {tgt_pct:<5} {tgt_mean:<8.2f} "
-            f"{tgt_psd:<7.2f} {tgt_se:<8.2f} {tgt_infit:<7.2f} {tgt_outfit:<7.2f} {tgt_ptma:<7.2f}"
+            f"{'':<12} {'Winsteps':<10} {tgt_cnt:<7} {tgt_pct:<5} {tgt_mean:<8.2f} "
+            f"{tgt_psd:<7.2f} {tgt_se:<8.2f} {tgt_infit_str:<7} {tgt_outfit_str:<7} {tgt_ptma:<7.2f}"
         )
         print("-" * 88)
 
         # Assertions per user specification:
-        # assert counts and percentages match exactly, ability means within 0.06 logit,
-        # P.SD and SE mean within 0.06, infit and outfit within 0.15, PTMA within 0.05
         if cnt != tgt_cnt:
             all_passed = False
             failure_messages.append(f"{code} count mismatch: {cnt} != {tgt_cnt}")
@@ -134,15 +146,32 @@ def main():
         if abs(se_mean - tgt_se) > 0.06:
             all_passed = False
             failure_messages.append(f"{code} SE mean diff {abs(se_mean - tgt_se):.4f} > 0.06")
-        if abs(infit - tgt_infit) > 0.15:
-            all_passed = False
-            failure_messages.append(f"{code} infit diff {abs(infit - tgt_infit):.4f} > 0.15")
-        if abs(outfit - tgt_outfit) > 0.15:
-            all_passed = False
-            failure_messages.append(f"{code} outfit diff {abs(outfit - tgt_outfit):.4f} > 0.15")
+        if tgt_infit != "":
+            if abs(infit - tgt_infit) > 0.15:
+                all_passed = False
+                failure_messages.append(f"{code} infit diff {abs(infit - tgt_infit):.4f} > 0.15")
+        else:
+            if infit != "":
+                all_passed = False
+                failure_messages.append(f"{code} expected blank infit, got {infit}")
+        if tgt_outfit != "":
+            if abs(outfit - tgt_outfit) > 0.15:
+                all_passed = False
+                failure_messages.append(f"{code} outfit diff {abs(outfit - tgt_outfit):.4f} > 0.15")
+        else:
+            if outfit != "":
+                all_passed = False
+                failure_messages.append(f"{code} expected blank outfit, got {outfit}")
         if abs(ptma - tgt_ptma) > 0.05:
             all_passed = False
             failure_messages.append(f"{code} PTMA diff {abs(ptma - tgt_ptma):.4f} > 0.05")
+
+    # Item 48 missing count check
+    item_48_missing = [r for r in table if r["NUMBER"] == 48 and r["CODE"] == "MISSING ***"]
+    if not item_48_missing or item_48_missing[0]["DATA_COUNT"] != 2109:
+        all_passed = False
+        act_48 = item_48_missing[0]["DATA_COUNT"] if item_48_missing else None
+        failure_messages.append(f"Item 48 missing count mismatch: {act_48} != 2109")
 
     print("=" * 88)
     if all_passed:

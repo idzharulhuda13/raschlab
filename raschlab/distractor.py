@@ -36,6 +36,7 @@ def option_table(
     person_se=None,
     keep=None,
     item_measures=None,
+    deleted=None,
 ):
     """Generate distractor and category statistics table matching Winsteps Table 15.3.
 
@@ -113,6 +114,24 @@ def option_table(
                     b_est -= f / f_prime
                 pm[i] = b_est
 
+    if deleted is not None:
+        if isinstance(deleted, (set, list, tuple)):
+            population = P - len([x for x in deleted if 1 <= x <= P])
+        elif isinstance(deleted, np.ndarray) and deleted.dtype == bool:
+            population = int(np.sum(~deleted))
+        else:
+            population = P - int(deleted)
+    elif keep is not None:
+        lacking = (counts == 0)
+        deleted_mask = ~keep_mask & ~lacking
+        population = int(np.sum(~deleted_mask))
+    else:
+        population = P
+
+    b_all = pm[keep_mask]
+    mean_b_all = float(np.mean(b_all)) if len(b_all) > 0 else 0.0
+    std_b_all = float(np.std(b_all, ddof=0)) if len(b_all) > 0 else 0.0
+
     out_rows = []
 
     for j in range(I):
@@ -152,6 +171,7 @@ def option_table(
 
         # Unique response codes observed
         item_codes = sorted(list(set(rows[i][j] for i in resp_idx)))
+        item_rows = []
 
         for code in item_codes:
             choosers = [i for i in resp_idx if rows[i][j] == code]
@@ -197,7 +217,7 @@ def option_table(
                 else:
                     outfit, infit = 1.0, 1.0
 
-            out_rows.append({
+            item_rows.append({
                 "NUMBER": item_num,
                 "CODE": str(code),
                 "VALUE": val,
@@ -212,6 +232,41 @@ def option_table(
                 "ITEM": item_num,
             })
 
-    # Sort by item number, then by descending DATA_COUNT
-    out_rows.sort(key=lambda r: (r["NUMBER"], -r["DATA_COUNT"]))
+        # Sort item options by ascending ABILITY MEAN
+        item_rows.sort(key=lambda r: r["ABILITY_MEAN"])
+
+        # Append MISSING row
+        miss_cnt = max(0, population - n_valid)
+        miss_pct = int(round(miss_cnt / population * 100)) if population > 0 else 0
+        miss_meas_mask = keep_mask & ~mask[:, j]
+        b_miss = pm[miss_meas_mask]
+        b_mean_m = float(np.mean(b_miss)) if len(b_miss) > 0 else 0.0
+        b_psd_m = float(np.std(b_miss, ddof=0)) if len(b_miss) > 0 else 0.0
+        se_mean_m = float(b_psd_m / np.sqrt(miss_cnt)) if miss_cnt > 0 else 0.0
+
+        y_m = np.array([1.0 if not mask[i, j] else 0.0 for i in np.where(keep_mask)[0]])
+        std_y_m = np.std(y_m, ddof=0)
+        if std_y_m > 1e-12 and std_b_all > 1e-12:
+            cov_m = np.mean((y_m - np.mean(y_m)) * (b_all - mean_b_all))
+            ptma_m = float(cov_m / (std_y_m * std_b_all))
+        else:
+            ptma_m = 0.0
+
+        item_rows.append({
+            "NUMBER": item_num,
+            "CODE": "MISSING ***",
+            "VALUE": "",
+            "DATA_COUNT": miss_cnt,
+            "DATA_PCT": miss_pct,
+            "ABILITY_MEAN": round(b_mean_m, 2),
+            "ABILITY_PSD": round(b_psd_m, 2),
+            "SE_MEAN": round(se_mean_m, 2),
+            "INFT_MNSQ": "",
+            "OUTF_MNSQ": "",
+            "PTMA_CORR": round(ptma_m, 2),
+            "ITEM": item_num,
+        })
+
+        out_rows.extend(item_rows)
+
     return out_rows
