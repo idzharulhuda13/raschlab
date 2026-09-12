@@ -46,8 +46,8 @@ the test suite.
 | Point-measure correlation (CORR.) and expected value (EXP.) | done, verified (EXP max diff 0.023 item / 0.006 person) |
 | Option/distractor table 15.3 (count, %, ability mean, P.SD, S.E., fit, PTMA, `MISSING ***` row) | done, verified row-by-row vs item 47 and 48 |
 | Output writers: CSV + XLSX in the team's sheet layout (two-row header, 15.1 / 15.3 / person / summary tabs) | done |
-| CLI: `analyze`, `suggest-deletes`, regression harness | done |
-| Tests | 46 passing with the reference data (5 skipped when `/tmp/reference` is absent) |
+| CLI: `analyze`, `analyze-all`, `suggest-deletes`, regression harness | done |
+| Tests | 70 passing with the reference data (5 skipped when `/tmp/reference` is absent) |
 
 ### Estimation modes
 
@@ -118,6 +118,11 @@ and are deliberately left as they are:
   `TOTAL COUNT` counts every observed response of every reported person, extreme persons included
   (`fit.py` item scope). An item's `TOTAL COUNT` can therefore exceed the number of persons feeding its
   INFIT/OUTFIT.
+- When nothing is calibratable (every person all-correct or all-wrong, or a `PDFILE` that deletes everyone)
+  the person statistics in `summary_table.csv` are written as **empty fields**, exactly where the XLSX cell
+  is blank, and no numpy warning escapes. A `PDFILE` that deletes *every* person is refused outright:
+  `Error: no persons remain after the PDFILE deletes; nothing to analyse` on stderr, exit code 2, and no
+  output file is written at all.
 
 ---
 
@@ -146,7 +151,7 @@ boundary flips, not missing conventions.
    0.10 logit; measured max difference 0.0675 logit. This is the only anchor-free evidence the reference files
    carry — a full unanchored Winsteps run is still needed before claiming parity on completely unanchored data.
 
-**P3 — closed 12 Sep 2026 except item 10**
+**P3 — closed 12 Sep 2026**
 
 8. Cross-platform/legacy control files: covered by committed fixtures under `tests/fixtures/` (Windows-style
    `DATA=`/`ILABEL=`, `MISSCORE=`, reordered `CODES=`, quoted paths, a control file with no path entries) and
@@ -154,11 +159,15 @@ boundary flips, not missing conventions.
    is byte-identical to the canonical `verbal` output.
 9. CI: deliberately skipped (12 Sep 2026). A ready-to-use workflow was written and tested locally —
    `python -m pytest tests -q` on push/PR across Python 3.10/3.11/3.12 with `pip install -e ".[dev]"`
-   (49 pass, 5 skip without the reference data) — but the repository token only carries `repo`, `gist`
+   (70 pass, 5 skip without the reference data) — but the repository token only carries `repo`, `gist`
    and `read:org` scopes, so GitHub rejects any push touching `.github/workflows/`. The file is parked
    outside the repo pending a `gh auth refresh -s workflow`.
-10. More synthetic tests: missing-response patterns, all-extreme person sets, single-category items, zero
-    variance guards. Still open.
+10. More synthetic tests: `tests/test_edge_cases_missing.py` and `tests/test_edge_cases_extreme.py` cover
+    missing-response patterns, a single-category item, zero-variance persons, all-extreme person sets, the
+    ZSTD clip invariant, an item nobody answered and a person delete list that empties the file. Those tests
+    found two real defects — `nan` written into the person statistics when nothing was calibratable, and a
+    `PDFILE` that deletes every person exiting 0 after writing an all-zero item table — both fixed and now
+    pinned by the suite (see *Known limitations*).
 11. Faster fit statistics: the per-row Python loops in `fit.py`, `report.py` and `distractor.py` are vectorised.
     All six reference runs are byte-identical to the previous outputs and the parity harness stays green;
     end-to-end batch time went from 4.75 s to 2.07 s (kuantitatif 0.98 s → 0.45 s).
