@@ -225,6 +225,90 @@ class TestCLI(unittest.TestCase):
         # P003 (entry 3) is already in pdfile -> must appear second
         self.assertEqual(entries, [2, 3])
 
+    def test_analyze_no_labels_runs_cleanly(self):
+        out_dir = os.path.join(self.tmpdir, "out_no_labels")
+        cmd = [
+            "analyze",
+            "--con", self.con_path,
+            "--data", self.data_path,
+            "--out", out_dir,
+            "--format", "csv",
+        ]
+        with patch("sys.stdout", new_callable=io.StringIO) as mock_out, \
+             patch("sys.stderr", new_callable=io.StringIO) as mock_err:
+            with self.assertRaises(SystemExit) as cm:
+                main(cmd)
+            self.assertEqual(cm.exception.code, 0)
+            self.assertEqual(mock_err.getvalue(), "")
+
+        item_csv = os.path.join(out_dir, "item_table_13.1.csv")
+        person_csv = os.path.join(out_dir, "person_table_17.1.csv")
+        self.assertTrue(os.path.isfile(item_csv))
+        self.assertTrue(os.path.isfile(person_csv))
+
+        import csv
+        with open(item_csv, "r", encoding="utf-8") as f:
+            item_rows = list(csv.reader(f))
+        self.assertGreater(len(item_rows), 2)
+        for r in item_rows[2:]:
+            # Non-empty item entry/label column
+            self.assertTrue(len(r[0].strip()) > 0)
+
+        with open(person_csv, "r", encoding="utf-8") as f:
+            person_rows = list(csv.reader(f))
+        self.assertGreater(len(person_rows), 2)
+        for r in person_rows[2:]:
+            # Non-empty person label column
+            self.assertTrue(len(r[-1].strip()) > 0)
+
+    def test_analyze_missing_labels_warns_and_succeeds(self):
+        out_dir = os.path.join(self.tmpdir, "out_missing_labels")
+        missing_labels = os.path.join(self.tmpdir, "does_not_exist_header.prn")
+        cmd = [
+            "analyze",
+            "--con", self.con_path,
+            "--data", self.data_path,
+            "--labels", missing_labels,
+            "--out", out_dir,
+            "--format", "csv",
+        ]
+        with patch("sys.stdout", new_callable=io.StringIO) as mock_out, \
+             patch("sys.stderr", new_callable=io.StringIO) as mock_err:
+            with self.assertRaises(SystemExit) as cm:
+                main(cmd)
+            self.assertEqual(cm.exception.code, 0)
+            err_output = mock_err.getvalue()
+            lines = [l for l in err_output.strip().splitlines() if l.strip()]
+            self.assertEqual(len(lines), 1)
+            self.assertIn("Warning: Labels file not found:", lines[0])
+            self.assertIn(missing_labels, lines[0])
+
+        item_csv = os.path.join(out_dir, "item_table_13.1.csv")
+        person_csv = os.path.join(out_dir, "person_table_17.1.csv")
+        self.assertTrue(os.path.isfile(item_csv))
+        self.assertTrue(os.path.isfile(person_csv))
+
+        import csv
+        with open(item_csv, "r", encoding="utf-8") as f:
+            item_rows = list(csv.reader(f))
+        self.assertGreater(len(item_rows), 2)
+        for r in item_rows[2:]:
+            self.assertTrue(len(r[0].strip()) > 0)
+
+        with open(person_csv, "r", encoding="utf-8") as f:
+            person_rows = list(csv.reader(f))
+        self.assertGreater(len(person_rows), 2)
+        for r in person_rows[2:]:
+            self.assertTrue(len(r[-1].strip()) > 0)
+
+    def test_analyze_help_documents_labels(self):
+        with patch("sys.stdout", new_callable=io.StringIO) as mock_out:
+            with self.assertRaises(SystemExit) as cm:
+                main(["analyze", "--help"])
+            self.assertEqual(cm.exception.code, 0)
+            norm_output = " ".join(mock_out.getvalue().split())
+            self.assertIn("optional override; item labels are read from the data file by default", norm_output)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -81,18 +81,17 @@ def run_analyze(
         print("Error: Missing required data file (--data)", file=sys.stderr)
         sys.exit(2)
 
-    # Resolve labels file (optional)
-    resolved_labels_path = labels_path
-    if not resolved_labels_path:
+    # Resolve labels file (optional override)
+    resolved_labels_path = None
+    if labels_path:
+        if not os.path.isfile(labels_path):
+            print(f"Warning: Labels file not found: {labels_path}", file=sys.stderr)
+        else:
+            resolved_labels_path = labels_path
+    else:
         con_ilabel = con.get("ILABEL")
-        if con_ilabel:
-            if os.path.isfile(con_ilabel):
-                resolved_labels_path = con_ilabel
-            else:
-                print(f"Warning: Control file ILABEL path does not exist: {con_ilabel}", file=sys.stderr)
-    if resolved_labels_path and not os.path.isfile(resolved_labels_path):
-        print(f"Error: Labels file not found: {resolved_labels_path}", file=sys.stderr)
-        sys.exit(2)
+        if con_ilabel and os.path.isfile(con_ilabel):
+            resolved_labels_path = con_ilabel
 
     # Read anchors (optional)
     anchors = None
@@ -116,6 +115,15 @@ def run_analyze(
     except Exception as e:
         print(f"Error reading data matrix: {e}", file=sys.stderr)
         sys.exit(2)
+
+    if resolved_labels_path:
+        try:
+            with open(resolved_labels_path, "r", encoding="utf-8") as f:
+                override_labels = [line.strip() for line in f if line.strip()]
+            if len(override_labels) == len(labels):
+                labels = override_labels
+        except Exception:
+            pass
 
     n_persons = len(labels)
 
@@ -390,7 +398,11 @@ def main(args=None):
     analyze_parser = subparsers.add_parser("analyze")
     analyze_parser.add_argument("--con", required=True, help="Path to control (.CON) file")
     analyze_parser.add_argument("--data", default=None, help="Path to data (.prn) file")
-    analyze_parser.add_argument("--labels", default=None, help="Path to labels / header (.prn) file")
+    analyze_parser.add_argument(
+        "--labels",
+        default=None,
+        help="optional override; item labels are read from the data file by default",
+    )
     analyze_parser.add_argument("--out", required=True, help="Output directory")
     analyze_parser.add_argument("--anchors", default=None, help="Path to item anchors (IAFILE) file")
     analyze_parser.add_argument("--pdfile", default=None, help="Path to person delete (PDFILE) file")
