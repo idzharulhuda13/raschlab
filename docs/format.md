@@ -140,12 +140,19 @@ Row order follows Winsteps TABLE 6.1 with `--person-order misfit` (the default):
   - `SE MEAN`: Standard error of the mean, `P.SD / sqrt(COUNT)`.
   - `ITEM`: Item label, identical to regular rows.
 
-### Wright Map (`wright_map_measure.csv`, `wright_map_frequency.csv`, Sheet `wright_measure` / `wright_frequency`) and `wright_map.txt`
+### Wright Map — chosen format: `wright_map_measure.csv` (Sheet `wright_measure`)
 
-The Wright map is emitted in a row-based, machine-readable shape rather than as the
-reference tool's ASCII picture, so the bins can be sorted, filtered and cross-checked
-against `item_table_15.1.csv` / `person_table.csv`. Every row is one measure bin of
-width 0.25 logit, spanning `floor(min/0.25) .. ceil(max/0.25)`.
+`wright_map_measure.csv` is the Wright map this project uses. It keeps the person bar and
+the item side **on the same row** — `NR_PERSON` / `PERSON_HIST` on the left, `NR_ITEM` /
+`ITEMS` / `ITEM_HIST` on the right — so a bin can be read as one line ("this bin holds
+159 persons and 26 items") and still be sorted, filtered and cross-checked against
+`item_table_15.1.csv` / `person_table.csv`. Every row is one measure bin of width 0.25
+logit, spanning `floor(min/0.25) .. ceil(max/0.25)`.
+
+Two optional extras are also written and may be ignored:
+`wright_map_frequency.csv` (Sheet `wright_frequency`) adds the equal-frequency view, and
+`wright_map.txt` is a monospaced rendering of the same numbers. Neither is needed to read
+the map.
 
 Both CSVs share these columns:
 
@@ -156,7 +163,7 @@ Both CSVs share these columns:
 | 3 | PERSON_HIST | Scaled person histogram (`#` per `scale` persons) |
 | 4 | NR_ITEM | Items whose measure falls in this bin |
 | 5 | ITEMS | Item labels in this bin; an item measured at exactly 0.0 is flagged ` *` |
-| 6 | ITEM_HIST | Scaled item histogram (one `#` per item, never scaled) |
+| 6 | ITEM_HIST | Scaled item histogram (one `#` per item, never scaled), sitting immediately after `ITEMS` so the item side reads left-to-right in one place |
 | 7 | PERSON_ENTRIES | Entry numbers of the persons in this bin |
 | 8 | ITEM_ENTRIES | Entry numbers of the items in this bin |
 
@@ -173,10 +180,11 @@ over the ranked person measures).
   person bar on the left and the item bar on the right, its own per-run `EACH "#" IS n`
   unit, and no numeric columns. Here the numbers are the primary content and the bars are
   a reading aid.
-- **`wright_map.txt`**: monospaced rendering of the same numbers, one 76-character line
-  per bin, person bar left of `|` and item side right of it, with its own honest legend
-  line (`EACH "#" IS n: EACH "|" IS 1`). Written by `scripts/wright_maps.py` and named
-  `wright_map.txt` in the run folder; it is not embedded in the workbook.
+- **`wright_map.txt`** (optional extra): monospaced rendering of the same numbers, one
+  76-character line per bin, person bar left of `|` and item side right of it, with a
+  legend whose unit is the scale actually drawn (`EACH "#" IS n: EACH "|" IS 1`). Written
+  by `scripts/wright_maps.py`; not embedded in the workbook. Use the CSV instead — the
+  text map loses the sortable columns.
 
 ### Summary Table (`summary_table.csv` / Sheet `summary`)
 Contains summary statistics for items and persons (counts, mean/SEM/P.SD/min/max measures and SEs, infit/outfit MNSQ means and SDs, real and model RMSE/separation/reliability, raw-score-to-measure correlation, and person exclusion counts).

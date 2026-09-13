@@ -197,10 +197,12 @@ the Sulingjar 2024 corpus is rating scale, not dichotomous.
 **13 Sep 2026 — Wright map shipped, item labels surfaced, and a SECOND independent reference implementation run**
 
 1. **Wright map delivered** as row-based output rather than a copy of the reference's ASCII picture, so the
-   bins sort, filter and cross-check against `item_table_15.1.csv` / `person_table.csv`. Two variants per run
-   (`wright_map_measure.csv`, `wright_map_frequency.csv`), two workbook sheets, plus `wright_map.txt`, a
-   76-column monospaced rendering with its own legend. The reference prints both variants too (its Table 1.2 and
-   1.12), so the pair is a parity feature, not an invention. Histogram unit is automatic, tuned to the bar width.
+   bins sort, filter and cross-check against `item_table_15.1.csv` / `person_table.csv`. Three renderings were
+   built and then judged side by side by the owner, who chose the table with the person bar and the item side on
+   the same row: **`wright_map_measure.csv` is the format this project uses**, with `ITEM_HIST` placed
+   immediately after `ITEMS`. `wright_map_frequency.csv` (the equal-frequency variant, the reference's Table
+   1.12 next to its 1.2) and `wright_map.txt` (a monospaced rendering) are still written as optional extras.
+   Histogram unit is automatic, tuned to the bar width so the widest bin does not clip.
 2. **The item label column was a real parity gap, not a nicety.** The reference's Table 15.1 carries an `ITEM`
    column holding the label (`contoh_kode_kolom`); the item table did not. The labels were already read from `ILABEL`
    inside the tool but reached only the distractor table, so the standalone `scripts/wright_maps.py` fell back to

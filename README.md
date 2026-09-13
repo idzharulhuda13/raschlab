@@ -48,7 +48,7 @@ the test suite.
 | Point-measure correlation (CORR.) and expected value (EXP.) | done, verified (worst item `CORR.` 0.01, `EXP.` 0.12 — both at one near-extreme item; ≤0.02 elsewhere) |
 | Option/distractor table 15.3 (count, %, ability mean, P.SD, S.E., fit, PTMA, `MISSING ***` row) | done, verified row-by-row vs item 47 and 48 |
 | Item label column (`ITEM`, from the `ILABEL` file) on the item table | done, verified: 147/147 labels identical to the reference's TABLE 15.1 |
-| Wright map — measure and frequency variants, plus a 76-column text rendering | done; row-based CSV (`wright_map_measure.csv`, `wright_map_frequency.csv`), workbook sheets `wright_measure` / `wright_frequency`, and `wright_map.txt` |
+| Wright map | done; **chosen format `wright_map_measure.csv`** (Sheet `wright_measure`) — person bar left, item side right on the same row, `ITEM_HIST` immediately after `ITEMS`. Optional extras also written: `wright_map_frequency.csv` (Sheet `wright_frequency`) and `wright_map.txt` |
 | Output writers: CSV + XLSX in the target sheet layout (two-row header, 15.1 / 15.3 / person / summary / wright_measure / wright_frequency tabs) | done |
 | CLI: `analyze`, `analyze-all`, `suggest-deletes`, regression harness | done |
 | Reference convergence rules (LCONV/RCONV, PROX 0.5-logit range rule) pinned by a golden fixture | done — `tests/regression/test_golden_convergence.py` |
