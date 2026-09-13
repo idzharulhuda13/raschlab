@@ -186,8 +186,13 @@ boundary flips, not missing conventions.
    OBS%/EXP%, integers on counts), frozen header rows and column widths; verified by reading the workbook back.
 7. Unanchored estimation: `tests/regression/compare_unanchored.py` compares our anchor-free estimates against
    the free measures implied by the golden `DISPLACE` column (15 anchored items over five runs). It gates at
-   0.10 logit; measured max difference 0.0675 logit. This is the only anchor-free evidence the reference files
-   carry — a full unanchored Winsteps run is still needed before claiming parity on completely unanchored data.
+   0.10 logit; measured max difference 0.0654 logit. This is the only anchor-free evidence the reference files
+   carry. **A full unanchored reference run is not needed:** every run the team produces is anchored, so the
+   anchor-free path is not a delivery requirement. Both searches for a free-standing unanchored reference were
+   made and closed on 13 Sep 2026 — public datasets carry no parseable item table from the reference tool, and
+   the Sulingjar 2024 corpus (146 tagged runs, 88 without any `IAFILE`) is **rating scale**, not dichotomous.
+   The full reasoning and evidence are in `docs/parity.md` §3; do not reopen this without a dichotomous,
+   unanchored reference run in hand.
 
 **P3 — closed 12 Sep 2026**
 

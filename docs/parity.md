@@ -69,10 +69,25 @@ acceptable, and the shipped 0.015 is inside it (0.0125 is a hair better on measu
 on the fit columns, which is why it ships). The dangerous direction is *downward*: at 0.008 penalaran doubles
 (0.043), at the reference's own 0.005 it is 0.065 and at full convergence 0.115.
 
-Untested: a materially different design (complete data, very short tests, rating-scale/partial-credit data,
-different sparsity). The constants above are calibration, not a law — for a new batch, run one subtest through
+**Anchoring is the team's permanent working mode, so the anchor-free path is not a delivery requirement.**
+Every reference run at hand — the six the 2025 tryout runs and every Sulingjar 2024 run inspected on 13 Sep 2026 — is
+anchored; the unanchored path is exercised only through the `DISPLACE` check in `tests/regression/compare_unanchored.py`
+(15 items over five runs, worst 0.0654 logit against its 0.10 gate). Two searches for a free-standing unanchored
+reference were made and closed:
+
+- *Public data*: usable datasets exist (rasch.org's standard datasets, IRW, edmdata), but a response matrix is not
+  evidence — the comparison needs the reference tool's own output for it, and no published unanchored run with a
+  parseable item table was found. Ministep (the free 25-item/75-case build) needs Windows; the box has no Wine,
+  no QEMU/KVM and 7 GB free, and 25 items is below the design family the constant was calibrated in.
+- *The Sulingjar 2024 corpus* (a Drive folder of 146 tagged runs, 88 of them with no `IAFILE` at all): the data
+  overwhelmingly exists, but those runs are **rating scale**, not dichotomous — `CODES = 1234`, four
+  `IVALUE` groups, `7 CATS` per item, `Model="R"` in the category-structure block — and their output carries the
+  `3.x` / `12.x` / `14.x` / `23.x` table set with no Table 15.1 and no Table 6.1. Polytomous models are out of
+  scope for raschlab, so the corpus cannot validate the dichotomous anchor-free path even in principle.
+
+For a **new anchored batch**, the constant is still worth re-checking rather than assumed: run one subtest through
 the reference tool and sweep `--lconv` with `tests/regression/compare_all_runs.py`. Five minutes, and it says
-whether the shipped value holds for that batch.
+whether the shipped value holds for that batch's design.
 
 ## 4. Standard errors and extreme scores
 
@@ -158,6 +173,17 @@ Committed fixtures — aggregate statistics only, no student data:
 3. Three Table 3.1 outputs were absent (S.SD rows, extreme-included person summary, item raw-score-to-measure
    correlation) — added and verified against the new summary fixture.
 
-Still open, and deliberately: the estimation-path differences in §3 (see the README for the argument), the
-section score/count summary rows of §8 are now delivered (their SEM follows the reference's sample-SD
-convention), and everything listed in §9.
+Still open, and deliberately: the estimation-path differences in §3 (see the README for the argument), and
+everything listed in §9. §3 also records why the anchor-free path is *not* a requirement: every run the team
+produces is anchored, and both searches for a free-standing unanchored reference were closed on 13 Sep 2026 —
+the Sulingjar 2024 corpus is rating scale, not dichotomous.
+
+**13 Sep 2026 — the section score/count rows of §8 delivered, and the anchor-free question closed**
+
+1. `TOTAL SCORE` blocks per section (formerly missing in §8) are implemented and gated on all six runs.
+   Their SEM convention was settled by sweeping eight candidates over the six runs rather than guessing: the
+   reference forms it from the SAMPLE SD over √N, which matches all six (worst 0.046 at its printed precision)
+   while the population-SD form misses three by up to 0.18.
+2. The anchor-free gap was closed as *not needed* rather than worked. Evidence and the abandoned routes
+   (public datasets; Ministep on Windows; the Sulingjar corpus) are recorded in §3 so the search is not
+   repeated.
