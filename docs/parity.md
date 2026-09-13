@@ -138,12 +138,16 @@ whether the shipped value holds for that batch's design.
 
 ## 9. Not implemented, and why
 
-| Item | Reference | Why |
-|---|---|---|
-| `CRONBACH ALPHA (KR-20)`, `STANDARDIZED (50 ITEM) RELIABILITY` | classical reliability printed after the summaries | for these runs the reference prints KR-20 `.00` with SEM 2.44 — not a usable target until its convention is understood. Rasch reliability (`REAL`/`MODEL` rows) is implemented and matches |
-| `DISPLACE`, `G`, `PTBSE`, `ESTIM DISCR`, `ASYMPTOTE LOWER/UPPER`, `P-VALUE`, `RMSR`, `WEIGH` | columns of Table 13.1 / 6.1 | unused by the team's sheets; `DISPLACE` is used internally as the anchor check |
-| Table 44 global statistics | separate table | absent from the six vendor files — no reference data to verify against |
-| Wright map, DIF, PCA of residuals, MFRM / PCM / RSM, logit-to-raw-score conversion tables | various | out of scope for the dichotomous workflow (README lists them) |
+Each row states what would have to exist before it could be opened — so the decision is a recorded one, not
+a standing invitation.
+
+| Item | Reference | Why not | What would open it |
+|---|---|---|---|
+| `CRONBACH ALPHA (KR-20)`, `STANDARDIZED (50 ITEM) RELIABILITY` | classical reliability printed after the summaries | for these runs the reference prints KR-20 `.00` with SEM 2.44 while Rasch reliability is healthy (item REL .95, person REL .33) — the `.00` is not a usable target and a textbook KR-20 would miss it for reasons unknown, so a gate would be red without meaning anything is wrong. The team's sheets carry no KR-20 row; the Rasch `REAL`/`MODEL` rows they do use are implemented and match | the reference tool's own KR-20 definition (its help page), or one dataset where its KR-20 is non-zero — then the convention can be swept like the `TOTAL SCORE` SEM was |
+| `DISPLACE`, `G`, `PTBSE`, `ESTIM DISCR`, `ASYMPTOTE LOWER/UPPER`, `P-VALUE`, `RMSR`, `WEIGH` | columns of Table 13.1 / 6.1 | diagnostic columns the team's sheets do not carry; `DISPLACE` is already used internally as the anchor check in `compare_unanchored.py` | a request from the team for a specific column, with the sheet that consumes it — not before |
+| Table 44 global statistics | separate table | absent from all six vendor files, and the item summary even defers to it (`Global statistics: please see Table 44.`) — there is no reference value to verify against | one reference run whose output includes Table 44 |
+| Wright map, DIF, PCA of residuals, MFRM / PCM / RSM, logit-to-raw-score conversion tables | various | out of scope for the dichotomous workflow (README lists them); the Sulingjar 2024 corpus confirms the rating-scale boundary is real but sits outside what raschlab is for | a decision to widen the tool's scope beyond dichotomous Rasch — a project, not a gap |
+
 
 ## 10. Re-verifying this document
 
