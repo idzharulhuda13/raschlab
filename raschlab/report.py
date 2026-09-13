@@ -4,6 +4,12 @@ import openpyxl
 from openpyxl.utils import get_column_letter
 
 from raschlab.distractor import option_table
+from raschlab.wright import (
+    FREQ_HEADER_ROW_1,
+    FREQ_HEADER_ROW_2,
+    MEASURE_HEADER_ROW_1,
+    MEASURE_HEADER_ROW_2,
+)
 
 
 # Number formats for numeric table columns, keyed by the second header-row name
@@ -119,11 +125,16 @@ def fill_sheet(ws, header_rows, data_rows, fmt_for, freeze_panes="A3"):
 
 
 # Two-row headers matching Winsteps / team sheets
+#
+# The item table carries the same columns as the reference tool's TABLE 15.1 and
+# ends with the item LABEL column ("ITEM"), so a reader of the CSV/XLSX can show
+# the item code (e.g. 01tbskda26a01) rather than only the ENTRY number.  It is
+# the last column, so every pre-existing column keeps its name, order and index.
 ITEM_HEADER_ROW_1 = [
-    "ENTRY", "TOTAL", "TOTAL", "JMLE", "MODEL", "INFIT", "", "OUTFIT", "", "PTMEASUR-AL", "", "EXACT", "MATCH"
+    "ENTRY", "TOTAL", "TOTAL", "JMLE", "MODEL", "INFIT", "", "OUTFIT", "", "PTMEASUR-AL", "", "EXACT", "MATCH", ""
 ]
 ITEM_HEADER_ROW_2 = [
-    "NUMBER", "SCORE", "COUNT", "MEASURE", "S.E.", "MNSQ", "ZSTD", "MNSQ", "ZSTD", "CORR.", "EXP.", "OBS%", "EXP%"
+    "NUMBER", "SCORE", "COUNT", "MEASURE", "S.E.", "MNSQ", "ZSTD", "MNSQ", "ZSTD", "CORR.", "EXP.", "OBS%", "EXP%", "ITEM"
 ]
 
 PERSON_HEADER_ROW_1 = [
@@ -213,6 +224,7 @@ def item_table_rows(
     person_measures=None,
     extra_cols=None,
     digits=2,
+    item_labels=None,
 ):
     """Generate item table rows matching Winsteps Table 15.1.
 
@@ -238,11 +250,17 @@ def item_table_rows(
         Extra columns (e.g. {'KET': [...]}) to append to each row.
     digits : int, optional
         Decimal digits for MEASURE and S.E. (default: 2).
+    item_labels : sequence of str of length I, optional
+        Item labels (e.g. '01tbskda26a01').  When given, each row ends with an
+        ITEM column holding the label, matching the reference tool's TABLE 15.1
+        ITEM column; without it the ITEM column is present but empty.  It is
+        appended LAST, so the 13 numeric columns keep their positions.
 
     Returns
     -------
     list of TableRow
-        List of dicts with 13 keys corresponding to Table 15.1.
+        List of dicts with 14 keys corresponding to Table 15.1 plus the ITEM
+        label column.
     """
     X = np.asarray(X, dtype=float)
     mask = np.asarray(mask, dtype=bool)
@@ -344,6 +362,11 @@ def item_table_rows(
         if extra_cols:
             for k, vals in extra_cols.items():
                 row[k] = vals[j] if j < len(vals) else ""
+
+        # Item label column, matching the reference tool's TABLE 15.1 ITEM
+        # column.  Added LAST so the 13 measured columns keep their positions;
+        # it is empty (not the entry number) when no label file was resolved.
+        row["ITEM"] = str(item_labels[j]) if item_labels is not None and j < len(item_labels) else ""
 
         rows.append(row)
 
@@ -827,8 +850,20 @@ def write_csv(rows, path, header_rows=None):
                 writer.writerow(r)
 
 
-def write_workbook(path, item_rows, person_rows, option_rows, summary_rows):
+def write_workbook(
+    path,
+    item_rows,
+    person_rows,
+    option_rows,
+    summary_rows,
+    wright_measure_rows=None,
+    wright_frequency_rows=None,
+):
     """Write XLSX workbook containing sheets: '15.1', 'person', '15.3', 'summary'.
+
+    When the Wright map rows are supplied, two more sheets are appended after
+    them: 'wright_measure' and 'wright_frequency'. Passing None for either (the
+    default) skips that sheet, so the four-sheet workbook is unchanged.
 
     Each sheet starts with its own two-row header where applicable. Header rows
     are frozen, numeric columns are written as real numbers carrying an explicit
@@ -880,6 +915,27 @@ def write_workbook(path, item_rows, person_rows, option_rows, summary_rows):
         [list(trip) for trip in summary_rows],
         summary_fmt,
     )
+
+    # Sheet wright_measure (Wright measure map, when supplied)
+    if wright_measure_rows is not None:
+        ws_wm = wb.create_sheet(title="wright_measure")
+        fill_sheet(
+            ws_wm,
+            [MEASURE_HEADER_ROW_1, MEASURE_HEADER_ROW_2],
+            [[r.get(key, "") for key in MEASURE_HEADER_ROW_1] for r in wright_measure_rows],
+            table_fmt,
+        )
+
+    # Sheet wright_frequency (Wright frequency map, when supplied). The rows
+    # carry their two extra fields last, so pick values in header column order.
+    if wright_frequency_rows is not None:
+        ws_wf = wb.create_sheet(title="wright_frequency")
+        fill_sheet(
+            ws_wf,
+            [FREQ_HEADER_ROW_1, FREQ_HEADER_ROW_2],
+            [[r.get(key, "") for key in FREQ_HEADER_ROW_1] for r in wright_frequency_rows],
+            table_fmt,
+        )
 
     wb.remove(default_sheet)
     wb.save(path)

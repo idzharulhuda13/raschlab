@@ -31,6 +31,14 @@ from raschlab.report import (
     OPTION_HEADER_ROW_1,
     OPTION_HEADER_ROW_2,
 )
+from raschlab.wright import (
+    MEASURE_HEADER_ROW_1,
+    MEASURE_HEADER_ROW_2,
+    FREQ_HEADER_ROW_1,
+    FREQ_HEADER_ROW_2,
+    measure_map_rows,
+    frequency_map_rows,
+)
 
 
 def run_analyze(
@@ -233,7 +241,17 @@ def run_analyze(
     s_rows = summary_rows(isum, psum, counts_info=counts_info, extreme_summary=psum_ext)
 
     # Generate table rows
-    i_rows = item_table_rows(x, mask, key, d, fit["item"], keep=keep, person_measures=b, digits=digits)
+    i_rows = item_table_rows(
+        x,
+        mask,
+        key,
+        d,
+        fit["item"],
+        keep=keep,
+        person_measures=b,
+        digits=digits,
+        item_labels=item_labels,
+    )
     if person_order == "misfit":
         is_extreme = (counts == 0) | (scores == 0) | (scores == counts)
         valid = (keep & ~is_extreme) if keep is not None else ~is_extreme
@@ -272,6 +290,19 @@ def run_analyze(
         )
     o_rows = option_rows(x, mask, rows, key, b, keep=keep, item_measures=d, item_labels=item_labels)
 
+    # Wright map rows: the person-item measure map and the person frequency map,
+    # built from the calibrated person measures (b) and item measures (d).
+    wright_items = [
+        (
+            j + 1,
+            str(item_labels[j]) if item_labels and j < len(item_labels) else str(j + 1),
+            float(d[j]),
+        )
+        for j in range(len(d))
+    ]
+    wright_measure_rows = measure_map_rows(b, wright_items, digits=digits)
+    wright_freq_rows = frequency_map_rows(b, wright_items, digits=digits)
+
     # Write output files
     os.makedirs(out_dir, exist_ok=True)
     files_written = []
@@ -281,6 +312,8 @@ def run_analyze(
     path_person = os.path.join(out_dir, "person_table.csv")
     path_option = os.path.join(out_dir, "option_table_15.3.csv")
     path_summary = os.path.join(out_dir, "summary_table.csv")
+    path_wright_measure = os.path.join(out_dir, "wright_map_measure.csv")
+    path_wright_freq = os.path.join(out_dir, "wright_map_frequency.csv")
     path_xlsx = os.path.join(out_dir, "analysis_report.xlsx")
 
     if fmt in ("csv", "both"):
@@ -292,9 +325,33 @@ def run_analyze(
         files_written.append(os.path.abspath(path_option))
         write_csv(s_rows, path_summary, header_rows=[["SECTION", "STATISTIC", "VALUE"], ["", "", ""]])
         files_written.append(os.path.abspath(path_summary))
+        # The measure rows carry ITEM_HIST last, so emit their values in the
+        # MEASURE_HEADER_ROW_1 column order to keep the CSV aligned with it.
+        write_csv(
+            [[r[key] for key in MEASURE_HEADER_ROW_1] for r in wright_measure_rows],
+            path_wright_measure,
+            header_rows=[MEASURE_HEADER_ROW_1, MEASURE_HEADER_ROW_2],
+        )
+        files_written.append(os.path.abspath(path_wright_measure))
+        # The frequency rows carry the two extra fields last, so emit their values
+        # in the FREQ_HEADER_ROW_1 column order to keep the CSV aligned with it.
+        write_csv(
+            [[r[key] for key in FREQ_HEADER_ROW_1] for r in wright_freq_rows],
+            path_wright_freq,
+            header_rows=[FREQ_HEADER_ROW_1, FREQ_HEADER_ROW_2],
+        )
+        files_written.append(os.path.abspath(path_wright_freq))
 
     if fmt in ("xlsx", "both"):
-        write_workbook(path_xlsx, i_rows, p_rows, o_rows, s_rows)
+        write_workbook(
+            path_xlsx,
+            i_rows,
+            p_rows,
+            o_rows,
+            s_rows,
+            wright_measure_rows,
+            wright_freq_rows,
+        )
         files_written.append(os.path.abspath(path_xlsx))
 
     elapsed = time.time() - start_time

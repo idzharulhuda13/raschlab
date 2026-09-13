@@ -68,7 +68,7 @@ Plain text file listing persons to exclude from calibrations and reported tables
 
 ## 3. Output Column Mappings
 
-Output tables replicate the structure used in Winsteps and team analytical spreadsheets:
+Output tables replicate the structure used in Winsteps and in the target analytical spreadsheets:
 
 ### Item Table (`item_table_15.1.csv` / Sheet `15.1`)
 | Column | Name | Description |
@@ -86,6 +86,11 @@ Output tables replicate the structure used in Winsteps and team analytical sprea
 | 11 | PTMEASUR-AL EXP. | Expected point-measure correlation (see formula below) |
 | 12 | EXACT MATCH OBS% | Observed percentage of exact response matches |
 | 13 | EXACT MATCH EXP% | Model expected percentage of exact response matches |
+| 14 | ITEM | Item label from the `ILABEL` file (e.g. `01tbskda26a01`), matching Winsteps TABLE 15.1's ITEM column; empty when no label file was resolved |
+
+The ITEM label column is appended LAST, after the 13 measured columns the earlier
+revisions already emitted, so existing consumers reading by position or header
+name are unaffected.
 
 **Item EXP. Formula** (for item $j$, over the $N$ calibrated persons who answered item $j$):
 - $P_{ij} = 1 / (1 + \exp(-(b_i - d_j)))$
@@ -135,6 +140,44 @@ Row order follows Winsteps TABLE 6.1 with `--person-order misfit` (the default):
   - `SE MEAN`: Standard error of the mean, `P.SD / sqrt(COUNT)`.
   - `ITEM`: Item label, identical to regular rows.
 
+### Wright Map (`wright_map_measure.csv`, `wright_map_frequency.csv`, Sheet `wright_measure` / `wright_frequency`) and `wright_map.txt`
+
+The Wright map is emitted in a row-based, machine-readable shape rather than as the
+reference tool's ASCII picture, so the bins can be sorted, filtered and cross-checked
+against `item_table_15.1.csv` / `person_table.csv`. Every row is one measure bin of
+width 0.25 logit, spanning `floor(min/0.25) .. ceil(max/0.25)`.
+
+Both CSVs share these columns:
+
+| Column | Name | Description |
+|---|---|---|
+| 1 | MEASURE | Bin centre (multiples of 0.25) |
+| 2 | NR_PERSON | Persons whose measure falls in this bin |
+| 3 | PERSON_HIST | Scaled person histogram (`#` per `scale` persons) |
+| 4 | NR_ITEM | Items whose measure falls in this bin |
+| 5 | ITEMS | Item labels in this bin; an item measured at exactly 0.0 is flagged ` *` |
+| 6 | ITEM_HIST | Scaled item histogram (one `#` per item, never scaled) |
+| 7 | PERSON_ENTRIES | Entry numbers of the persons in this bin |
+| 8 | ITEM_ENTRIES | Entry numbers of the items in this bin |
+
+`wright_map_frequency.csv` inserts two columns after `NR_PERSON`:
+`NR_PERSON_PRESENT` (persons actually present in the bin) and `PERSON_FREQ_HIST`, the
+histogram of the equal-frequency segment the bin belongs to (20 equal-count segments
+over the ranked person measures).
+
+**Conventions**
+- **Histogram scale**: automatic, `1` for a small run and rising for a large one, chosen
+  so the widest bar lands at ~45 characters; rounding is upward. `ITEM_HIST` is always
+  1 item = 1 `#`. An explicit `scale=` is honoured instead of the automatic value.
+- **Not copied from the reference**: the reference prints one combined picture with the
+  person bar on the left and the item bar on the right, its own per-run `EACH "#" IS n`
+  unit, and no numeric columns. Here the numbers are the primary content and the bars are
+  a reading aid.
+- **`wright_map.txt`**: monospaced rendering of the same numbers, one 76-character line
+  per bin, person bar left of `|` and item side right of it, with its own honest legend
+  line (`EACH "#" IS n: EACH "|" IS 1`). Written by `scripts/wright_maps.py` and named
+  `wright_map.txt` in the run folder; it is not embedded in the workbook.
+
 ### Summary Table (`summary_table.csv` / Sheet `summary`)
 Contains summary statistics for items and persons (counts, mean/SEM/P.SD/min/max measures and SEs, infit/outfit MNSQ means and SDs, real and model RMSE/separation/reliability, raw-score-to-measure correlation, and person exclusion counts).
 
@@ -151,7 +194,6 @@ the reference's own convention; `S.SD` is the sample SD (`ddof=1`) and `P.SD` th
 
 The following features are intentionally out of scope:
 - Polytomous response models (Partial Credit Model `PCM`, Rating Scale Model `RSM`, Many-Facet Rasch `MFRM`).
-- Wright person-item map.
 - Differential Item Functioning (DIF) across person demographic groups.
 - Principal Component Analysis (PCA) of standardized residuals.
 - Logit-to-raw-score lookup table.

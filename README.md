@@ -1,7 +1,7 @@
 # raschlab
 
 `raschlab` is an open-source replacement for Winsteps 5.2.1 for **dichotomous Rasch item analysis**. It reads the
-same control (`.CON`) and fixed-width response (`.prn`) files the team already uses and reproduces
+same control (`.CON`) and fixed-width response (`.prn`) files the existing workflow already uses and reproduces
 Winsteps-equivalent item difficulties, person measures, fit statistics (Infit/Outfit MNSQ and ZSTD), distractor
 diagnostics, separation/reliability statistics and summary tables.
 
@@ -47,11 +47,13 @@ the test suite.
 | `TOTAL SCORE` summary block per section (item, person, extreme-included person) | done, verified against all six runs (`tests/regression/test_golden_summaries.py`); SEM follows the reference's sample-SD-over-√N convention |
 | Point-measure correlation (CORR.) and expected value (EXP.) | done, verified (worst item `CORR.` 0.01, `EXP.` 0.12 — both at one near-extreme item; ≤0.02 elsewhere) |
 | Option/distractor table 15.3 (count, %, ability mean, P.SD, S.E., fit, PTMA, `MISSING ***` row) | done, verified row-by-row vs item 47 and 48 |
-| Output writers: CSV + XLSX in the team's sheet layout (two-row header, 15.1 / 15.3 / person / summary tabs) | done |
+| Item label column (`ITEM`, from the `ILABEL` file) on the item table | done, verified: 147/147 labels identical to the reference's TABLE 15.1 |
+| Wright map — measure and frequency variants, plus a 76-column text rendering | done; row-based CSV (`wright_map_measure.csv`, `wright_map_frequency.csv`), workbook sheets `wright_measure` / `wright_frequency`, and `wright_map.txt` |
+| Output writers: CSV + XLSX in the target sheet layout (two-row header, 15.1 / 15.3 / person / summary / wright_measure / wright_frequency tabs) | done |
 | CLI: `analyze`, `analyze-all`, `suggest-deletes`, regression harness | done |
 | Reference convergence rules (LCONV/RCONV, PROX 0.5-logit range rule) pinned by a golden fixture | done — `tests/regression/test_golden_convergence.py` |
 | Formula-level parity audit (every formula/convention, with status and evidence) | done — `docs/parity.md` |
-| Tests | 93 passing with the reference data (5 skipped when `/tmp/reference` is absent) |
+| Tests | 94 passing with the reference data (5 skipped when `/tmp/reference` is absent) |
 
 ### Estimation modes
 
@@ -166,7 +168,7 @@ and are deliberately left as they are:
 
 ## What still needs development
 
-Ordered by value to the team; nothing here blocks current use.
+Ordered by value; nothing here blocks current use.
 
 **P1 — closed 12 Sep 2026**
 
@@ -187,7 +189,7 @@ boundary flips, not missing conventions.
 7. Unanchored estimation: `tests/regression/compare_unanchored.py` compares our anchor-free estimates against
    the free measures implied by the golden `DISPLACE` column (15 anchored items over five runs). It gates at
    0.10 logit; measured max difference 0.0654 logit. This is the only anchor-free evidence the reference files
-   carry. **A full unanchored reference run is not needed:** every run the team produces is anchored, so the
+   carry. **A full unanchored reference run is not needed:** every run this project targets is anchored, so the
    anchor-free path is not a delivery requirement. Both searches for a free-standing unanchored reference were
    made and closed on 13 Sep 2026 — public datasets carry no parseable item table from the reference tool, and
    the Sulingjar 2024 corpus (146 tagged runs, 88 without any `IAFILE`) is **rating scale**, not dichotomous.
@@ -228,14 +230,14 @@ per item, what would have to exist before it could be opened.
 
 - **KR-20 / standardized reliability.** The reference prints `.00` on these runs while its Rasch reliability is
   healthy (item REL .95, person REL .33), so the `.00` is no target and a textbook KR-20 would miss it for reasons
-  that are not yet understood — a gate on it would fail without meaning anything is wrong. The team's sheets use
+  that are not yet understood — a gate on it would fail without meaning anything is wrong. The target sheets use
   the Rasch `REAL`/`MODEL` rows, which are implemented and match. Opening this needs the reference's own KR-20
   definition or one dataset where its KR-20 is non-zero.
 - **Table 44 global statistics.** Absent from all six vendor files — the item summary merely defers to it
   (`Global statistics: please see Table 44.`) — so there is no reference value to verify against.
 - Wright maps (person-item variable maps), DIF analysis, PCA of residuals, MFRM / partial-credit / rating-scale
   models, logit-to-raw-score conversion tables, person anchoring beyond the `PDFILE` list, and the diagnostic
-  Table 13.1 / 6.1 columns (`DISPLACE`, `G`, `PTBSE`, …) that the team's sheets do not carry.
+  Table 13.1 / 6.1 columns (`DISPLACE`, `G`, `PTBSE`, …) that the target sheets do not carry.
 
 Note on scope: the Sulingjar 2024 corpus inspected on 13 Sep 2026 (146 tagged reference runs) is **rating scale**,
 not dichotomous, so it is outside what raschlab covers — widening that boundary would be a project, not a fix.
@@ -274,7 +276,8 @@ Options:
 - `--out DIR` — output directory. *(required)*
 
 Output files:
-- `item_table_15.1.csv` — item measures, S.E., fit, PTMEA CORR/EXP, exact match.
+- `item_table_15.1.csv` — item measures, S.E., fit, PTMEA CORR/EXP, exact match, and the item `ITEM` label
+  (from `ILABEL`) in the last column.
 - `person_table.csv` — person measures and fit (extreme persons excluded, and counted in the summary);
   misfit order with the `RANK` letters unless `--person-order entry`.
 - `option_table_15.3.csv` — option counts, %, ability mean/P.SD/S.E. MEAN, fit, PTMA, plus the `MISSING ***` row.

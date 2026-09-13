@@ -67,7 +67,9 @@ class TestReport(unittest.TestCase):
 
         self.assertEqual(len(i_rows), 3)
         for r in i_rows:
-            self.assertEqual(len(r), 13)
+            # 13 measured columns + the ITEM label column (empty here: no labels)
+            self.assertEqual(len(r), 14)
+            self.assertEqual(r["ITEM"], "")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             csv_path = os.path.join(tmpdir, "item_table.csv")
@@ -83,7 +85,7 @@ class TestReport(unittest.TestCase):
             self.assertEqual(reader[1], ITEM_HEADER_ROW_2)
 
             for line_idx, row in enumerate(reader):
-                self.assertEqual(len(row), 13, f"Row {line_idx} does not have 13 columns")
+                self.assertEqual(len(row), 14, f"Row {line_idx} does not have 14 columns")
                 for cell in row:
                     self.assertNotIn(",", cell, f"Comma found in cell value '{cell}'")
 
@@ -320,6 +322,41 @@ class TestReport(unittest.TestCase):
                     if r["PERSON"] in golden_persons
                 ]
                 self.assertLessEqual(max(person_diffs), 0.01 + 1e-5)
+
+    def test_item_table_label_column(self):
+        """The ITEM label column is appended LAST and carries the item labels."""
+        X = np.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
+        mask = np.ones((3, 2), dtype=bool)
+        item_measures = np.array([0.10, -0.20])
+        fit_item = {
+            "se": np.array([0.30, 0.31]),
+            "infit_mnsq": np.array([1.00, 1.00]),
+            "infit_zstd": np.array([0.00, 0.00]),
+            "outfit_mnsq": np.array([1.00, 1.00]),
+            "outfit_zstd": np.array([0.00, 0.00]),
+        }
+        labels = ["01tbskda26a01", "01tbskda26a02"]
+
+        rows = item_table_rows(X, mask, "AB", item_measures, fit_item, item_labels=labels)
+
+        # 14 columns, the label LAST so the 13 measured columns keep their index.
+        for r in rows:
+            self.assertEqual(len(r), 14)
+            self.assertEqual(list(r.keys())[-1], "ITEM")
+        self.assertEqual([r["ITEM"] for r in rows], labels)
+        self.assertEqual(rows[0]["ENTRY"], 1)
+        self.assertEqual(rows[1]["ENTRY"], 2)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = os.path.join(tmpdir, "item_table.csv")
+            write_csv(rows, csv_path, header_rows=[ITEM_HEADER_ROW_1, ITEM_HEADER_ROW_2])
+            with open(csv_path, "r", encoding="utf-8") as f:
+                reader = list(csv.reader(f))
+
+        self.assertEqual(reader[1][-1], "ITEM")
+        self.assertEqual([r[-1] for r in reader[2:]], labels)
+        # The measured columns keep their positions: MEASURE is still index 3.
+        self.assertEqual(reader[2][3], "0.10")
 
     def test_table_number_formatting(self):
         X = np.array([[1.0], [0.0]])
