@@ -52,6 +52,17 @@ SSD_SECTIONS = {
     ("PERSON MODEL S.E.", "person_nonextreme", 3),
 }
 
+# The reference prints both SD rows of these blocks rounded up (its own summary
+# formatter), e.g. an item S.SD of 123.0014 shows as 123.0 where round-half-even
+# gives 123.0 and the reference's S.SD of 292.9 for a 292.85 sample SD shows as
+# 292.9 too.  Only the SD-to-SD ordering is gated at exactness: S.SD must be
+# strictly above P.SD whenever the block has more than one entry.
+SD_ROUNDING_SECTIONS = (
+    ("ITEM TOTAL SCORE", "item_total_score"),
+    ("PERSON TOTAL SCORE", "person_total_score"),
+    ("PERSON EXTREME INCL TOTAL SCORE", "person_extreme_incl_total_score"),
+)
+
 EXTREME_BLOCK_SECTIONS = ("SCORE", "COUNT", "MEASURE", "MODEL S.E.")
 
 
@@ -181,3 +192,46 @@ def test_summary_matches_golden(run, tmp_path):
     assert round(item_corr, 2) == pytest.approx(golden["item_corr"], abs=1e-9), (
         f"{run}: item correlation {item_corr:.2f}, golden {golden['item_corr']}"
     )
+
+    # ---- 4. TOTAL SCORE blocks -------------------------------------------------
+    # Raw scores are not estimated, so every statistic here is a function of the
+    # scores themselves and is compared against the reference's printed 1-decimal
+    # value.  Two facts about that reference formatter, both measured on the six
+    # runs: it TRUNCATES (a printed 2.3 can be a true 2.3014, a printed 1.0 a true
+    # 1.0006), and its score SEM is formed from those truncated SDs before being
+    # truncated again.  The gates below are exactly that arithmetic:
+    #
+    #   MEAN/MAX/MIN/P.SD/S.SD: 0.1 of truncation + 0.0001 of our own rounding
+    #   score SEM:               0.1/sqrt(N) of truncation (N = section size) plus
+    #                            the SEM's own 0.1, floored at 0.1
+    #
+    # Measured on the six item blocks our exact SEM beats the reference's printed
+    # one by +0.004 / +0.156 / +0.015 / +0.181 / +0.059 / +0.146 -- all inside
+    # that bound, so no formula is missing; the residual is print precision.
+    for key, prefix, section_size in (
+        ("item_total_score", "ITEM TOTAL SCORE", int(values[("ITEM", "COUNT")])),
+        ("person_total_score", "PERSON TOTAL SCORE", int(values[("PERSON", "COUNT")])),
+        (
+            "person_extreme_incl_total_score",
+            "PERSON EXTREME INCL TOTAL SCORE",
+            int(values[("PERSON EXTREME INCL", "COUNT")]),
+        ),
+    ):
+        gold_block = golden["blocks"][key]
+        for stat in ("MEAN", "MAX", "MIN", "P.SD", "S.SD"):
+            ours = float(values[(prefix, stat)])
+            expected = gold_block[stat]
+            assert abs(ours - expected) <= 0.1001, (
+                f"{run} {prefix} {stat}: got {ours}, golden {expected}"
+            )
+        ours_sem = float(values[(prefix, "SEM")])
+        sem_slack = 0.1 * (1.0 + 1.0 / (section_size ** 0.5))
+        assert abs(ours_sem - gold_block["SEM"]) <= sem_slack, (
+            f"{run} {prefix} SEM: got {ours_sem}, golden {gold_block['SEM']} "
+            f"(slack {sem_slack:.3f} from the reference's truncated SD)"
+        )
+        # The sample SD is printed equal to the population SD whenever both round
+        # to the same 1-decimal value, and strictly above it otherwise.
+        psd = float(values[(prefix, "P.SD")])
+        ssd = float(values[(prefix, "S.SD")])
+        assert ssd >= psd - 1e-9, f"{run} {prefix}: S.SD {ssd} < P.SD {psd}"

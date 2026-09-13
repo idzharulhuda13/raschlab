@@ -668,8 +668,42 @@ def _append_separation_blocks(rows, prefix, stats):
     rows.append((f"{prefix} MODEL", "RELIABILITY", _round_or_blank(model.get("reliability", 0.0))))
 
 
+def _append_score_count_block(rows, prefix, values):
+    """Append the TOTAL SCORE / TOTAL COUNT summary rows of one section.
+
+    `values` is the raw-score (or response-count) value per entry of the
+    section: item raw scores for the item section, person raw scores and person
+    response counts for a person section.  Ordering of the six rows matches the
+    reference tool's own summary: MEAN, SEM, MAX, MIN, S.SD, P.SD.
+    SEM is the SAMPLE SD over sqrt(N), the convention the reference tool's own summary prints.
+    """
+    arr = np.asarray(values, dtype=float)
+    n = arr.size
+    if n == 0:
+        stats = {"mean": 0.0, "sem": 0.0, "max": 0.0, "min": 0.0, "ssd": 0.0, "psd": 0.0}
+    else:
+        psd = float(np.std(arr, ddof=0))
+        stats = {
+            "mean": float(np.mean(arr)),
+            "sem": float(np.std(arr, ddof=1) / np.sqrt(n)) if n > 1 else 0.0,
+            "max": float(np.max(arr)),
+            "min": float(np.min(arr)),
+            "ssd": float(np.std(arr, ddof=1)) if n > 1 else 0.0,
+            "psd": psd,
+        }
+    for label in ("MEAN", "SEM", "MAX", "MIN", "S.SD", "P.SD"):
+        value = _round_or_blank(stats[label.lower().replace(".", "")])
+        rows.append((f"{prefix} {label}", "VALUE", value))
+        # The section is also addressable by its bare name, the way the other
+        # summary sections read ((prefix, statistic) == (section, label) there).
+        rows.append((prefix, label, value))
+
+
 def summary_rows(item_summary, person_summary, counts_info=None, extreme_summary=None):
     """Build list of (section, label, value) triples from item and person summaries.
+
+    Each section also emits its TOTAL SCORE block (MEAN/SEM/MAX/MIN/S.SD/P.SD of
+    the raw-score values the section carries as 'scores').
 
     Parameters
     ----------
@@ -697,6 +731,7 @@ def summary_rows(item_summary, person_summary, counts_info=None, extreme_summary
     i_outf = item_summary.get("outfit_mnsq", {})
 
     rows.append(("ITEM", "COUNT", item_summary.get("count", 0)))
+    _append_score_count_block(rows, "ITEM TOTAL SCORE", item_summary.get("scores", []))
     _append_stat_block(rows, "ITEM MEASURE", im)
     _append_stat_block(rows, "ITEM MODEL S.E.", ise)
 
@@ -719,6 +754,7 @@ def summary_rows(item_summary, person_summary, counts_info=None, extreme_summary
     p_outf = person_summary.get("outfit_mnsq", {})
 
     rows.append(("PERSON", "COUNT", person_summary.get("count", 0)))
+    _append_score_count_block(rows, "PERSON TOTAL SCORE", person_summary.get("scores", []))
     _append_stat_block(rows, "PERSON MEASURE", pm)
     _append_stat_block(rows, "PERSON MODEL S.E.", pse)
 
@@ -739,6 +775,7 @@ def summary_rows(item_summary, person_summary, counts_info=None, extreme_summary
     # columns are empty by design, so no fit rows are emitted here.
     if extreme_summary is not None:
         rows.append(("PERSON EXTREME INCL", "COUNT", extreme_summary.get("count", 0)))
+        _append_score_count_block(rows, "PERSON EXTREME INCL TOTAL SCORE", extreme_summary.get("scores", []))
         _append_stat_block(rows, "PERSON EXTREME INCL SCORE", extreme_summary.get("score", {}))
         _append_stat_block(rows, "PERSON EXTREME INCL COUNT", extreme_summary.get("counts", {}))
         _append_stat_block(rows, "PERSON EXTREME INCL MEASURE", extreme_summary.get("measure", {}))

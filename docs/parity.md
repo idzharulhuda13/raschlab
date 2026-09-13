@@ -119,7 +119,7 @@ whether the shipped value holds for that batch.
 | `S.E. OF MEAN` | P.SD/√N | same | identical | item .06, person .02 |
 | Extreme-included person summary | second block, fit columns blank | same | identical | six-run check vs the golden fixture |
 | Raw score-to-measure correlation | item and person | both | see §6 | |
-| Section `TOTAL SCORE` / `TOTAL COUNT` statistics | MEAN/SEM/P.SD/S.SD/MAX/MIN of the raw score and count per section | per-item values exist in the item table, but not as summary rows | **missing** | low value for the team's sheets (the raw score and count are already columns of table 15.1) |
+| Section `TOTAL SCORE` / `TOTAL COUNT` statistics | MEAN/SEM/P.SD/S.SD/MAX/MIN of the raw score and count per section | both, as `ITEM TOTAL SCORE`, `PERSON TOTAL SCORE` and `PERSON EXTREME INCL TOTAL SCORE` rows | implemented | SEM is the SAMPLE SD over sqrt(N) — measured against the six reference runs, this convention matches all six (worst 0.046 at the printed 1-decimal precision) while the population-SD form misses three by up to 0.18. The reference's own formatter truncates, which is why its printed 2.3 can be a true 2.3014 |
 
 ## 9. Not implemented, and why
 
@@ -159,4 +159,5 @@ Committed fixtures — aggregate statistics only, no student data:
    correlation) — added and verified against the new summary fixture.
 
 Still open, and deliberately: the estimation-path differences in §3 (see the README for the argument), the
-missing section score/count summary rows in §8, and everything listed in §9.
+section score/count summary rows of §8 are now delivered (their SEM follows the reference's sample-SD
+convention), and everything listed in §9.

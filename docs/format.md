@@ -138,6 +138,13 @@ Row order follows Winsteps TABLE 6.1 with `--person-order misfit` (the default):
 ### Summary Table (`summary_table.csv` / Sheet `summary`)
 Contains summary statistics for items and persons (counts, mean/SEM/P.SD/min/max measures and SEs, infit/outfit MNSQ means and SDs, real and model RMSE/separation/reliability, raw-score-to-measure correlation, and person exclusion counts).
 
+Each section also carries its **TOTAL SCORE** block as `SECTION TOTAL SCORE` rows
+(`MEAN`, `SEM`, `MAX`, `MIN`, `S.SD`, `P.SD`), the same block the reference tool prints next to each
+summary: the item section covers the item raw scores, the two person sections the person raw scores
+(non-extreme population, then the extreme-included population). `SEM` is the sample SD over `sqrt(N)`,
+the reference's own convention; `S.SD` is the sample SD (`ddof=1`) and `P.SD` the population SD
+(`ddof=0`).
+
 ---
 
 ## 4. Unsupported Features / Out of Scope

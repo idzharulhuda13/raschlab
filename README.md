@@ -44,13 +44,14 @@ the test suite.
 | Fit statistics (Infit/Outfit MNSQ + ZSTD, model & real S.E.) | done, verified |
 | Extreme scores (`EXTRSCORE=0.3`, person + item extremes) | done, verified against the reference's extreme-included person block in all six runs |
 | Separation / reliability / summary blocks (incl. `S.SD`, extreme-included person block, raw-score-to-measure correlations) | done, verified (item REAL SEP 4.51→4.52 REL .95; person REAL SEP .70 REL .33) |
+| `TOTAL SCORE` summary block per section (item, person, extreme-included person) | done, verified against all six runs (`tests/regression/test_golden_summaries.py`); SEM follows the reference's sample-SD-over-√N convention |
 | Point-measure correlation (CORR.) and expected value (EXP.) | done, verified (worst item `CORR.` 0.01, `EXP.` 0.12 — both at one near-extreme item; ≤0.02 elsewhere) |
 | Option/distractor table 15.3 (count, %, ability mean, P.SD, S.E., fit, PTMA, `MISSING ***` row) | done, verified row-by-row vs item 47 and 48 |
 | Output writers: CSV + XLSX in the team's sheet layout (two-row header, 15.1 / 15.3 / person / summary tabs) | done |
 | CLI: `analyze`, `analyze-all`, `suggest-deletes`, regression harness | done |
 | Reference convergence rules (LCONV/RCONV, PROX 0.5-logit range rule) pinned by a golden fixture | done — `tests/regression/test_golden_convergence.py` |
 | Formula-level parity audit (every formula/convention, with status and evidence) | done — `docs/parity.md` |
-| Tests | 88 passing with the reference data (5 skipped when `/tmp/reference` is absent) |
+| Tests | 93 passing with the reference data (5 skipped when `/tmp/reference` is absent) |
 
 ### Estimation modes
 
@@ -208,6 +209,12 @@ boundary flips, not missing conventions.
 11. Faster fit statistics: the per-row Python loops in `fit.py`, `report.py` and `distractor.py` are vectorised.
     All six reference runs are byte-identical to the previous outputs and the parity harness stays green;
     end-to-end batch time went from 4.75 s to 2.07 s (kuantitatif 0.98 s → 0.45 s).
+12. `TOTAL SCORE` summary rows per section (formerly listed as missing in `docs/parity.md` §8): the summary
+    table now carries `ITEM TOTAL SCORE`, `PERSON TOTAL SCORE` and `PERSON EXTREME INCL TOTAL SCORE` blocks
+    (MEAN/SEM/MAX/MIN/S.SD/P.SD). Gated on all six runs by `tests/regression/test_golden_summaries.py`.
+    The SEM convention was settled by a sweep of eight candidates over the six runs: the reference uses
+    **SAMPLE SD / √N**, which matches all six (worst 0.046 at its printed precision) while the
+    population-SD form misses three of them by up to 0.18.
 
 **Out of scope for now**
 

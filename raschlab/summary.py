@@ -181,6 +181,7 @@ def item_summary(item_stats, item_measures, scores=None):
 
     if scores is not None:
         result["raw_score_corr"] = raw_score_measure_corr(scores, measures)
+        result["scores"] = np.asarray(scores, dtype=float)
 
     return result
 
@@ -272,6 +273,8 @@ def person_summary_extreme_incl(
         "count": int(np.sum(kp)),
         "score": _calc_stats_block(s),
         "counts": _calc_stats_block(c),
+        # Raw-score values behind the TOTAL SCORE rows of the summary table.
+        "scores": s,
         "measure": measure_block,
         "se": _calc_stats_block(se),
         "model": separation_stats(b, se),
@@ -366,6 +369,9 @@ def person_summary(person_stats, person_measures, scores=None, counts=None, keep
             "sd": outfit_sd,
         },
         "raw_score_corr": corr,
+        # Raw-score values behind the section's TOTAL SCORE rows: the persons
+        # this summary was computed over (extreme persons excluded).
+        "scores": np.asarray(scores_valid, dtype=float) if scores_valid is not None else np.array([]),
         "model": model_sep,
         "real": real_sep,
     }
