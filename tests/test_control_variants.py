@@ -4,7 +4,7 @@ The team exports control files from Windows/Winsteps, so ``parse_control`` has t
 tolerate CRLF line endings, tab-separated trailing comments, Windows backslash
 paths in DATA=/ILABEL=/IAFILE=/PDFILE=, a bare ``MISSCORE=`` and a ``CODES=`` whose
 order differs from the response alphabet. These fixtures keep those variants
-exercised on CI, without the reference data under /tmp/reference.
+exercised on CI, without the reference data under /tmp/raschlab-reference.
 
 All four runnable fixtures share one tiny data matrix (10 persons x 5 items,
 ``variants_data.prn``: NAME1=1 NAMLEN=8 ITEM1=11 NI=5) so the fixtures stay small.
@@ -29,7 +29,7 @@ OUTPUT_NAMES = (
 )
 
 WIN_BASE = (
-    r"C:\Users\TESTER\Documents\REFERENCE\referensi\Verbal"
+    r"C:\Users\TESTER\Documents\referensi\Verbal"
 )
 
 

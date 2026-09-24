@@ -51,11 +51,17 @@ def main():
     data_dir = (
         os.environ.get("RASCHLAB_DATA_DIR")
         or os.environ.get("RSAHLAB_DATA_DIR")
-        or "/tmp/reference"
     )
 
-    if not os.path.isdir(data_dir):
-        print(f"Data directory not found: {data_dir}. Skipping gracefully.")
+    if not data_dir or not os.path.isdir(data_dir):
+        print(f"Reference directory not found: {data_dir}. Skipping gracefully.")
+        sys.exit(0)
+
+    golden_json_path = os.path.join(os.path.dirname(__file__), "golden_items.json")
+    if not os.path.isfile(golden_json_path):
+        golden_json_path = os.path.join("tests", "regression", "golden_items.json")
+    if not os.path.isfile(golden_json_path):
+        print(f"Golden JSON not found: {golden_json_path}. Skipping gracefully.")
         sys.exit(0)
 
     runs = [

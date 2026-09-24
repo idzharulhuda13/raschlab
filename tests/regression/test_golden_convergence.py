@@ -14,6 +14,11 @@ from pathlib import Path
 import pytest
 
 FIXTURE_PATH = Path(__file__).parent / "golden_convergence.json"
+if not FIXTURE_PATH.exists():
+    pytest.skip(
+        "reference baseline withheld: it is derived from a client dataset and is not distributed",
+        allow_module_level=True,
+    )
 
 with open(FIXTURE_PATH, encoding="utf-8") as f:
     GOLDEN_DATA = json.load(f)

@@ -35,11 +35,16 @@ if str(REPO_ROOT) not in sys.path:
 from raschlab.cli import run_analyze  # noqa: E402
 
 FIXTURE_PATH = Path(__file__).parent / "golden_summaries.json"
+if not FIXTURE_PATH.exists():
+    pytest.skip(
+        "reference baseline withheld: it is derived from a client dataset and is not distributed",
+        allow_module_level=True,
+    )
 with open(FIXTURE_PATH, encoding="utf-8") as f:
     GOLDEN = json.load(f)
 
 RUNS = sorted(GOLDEN)
-DATA_DIR = Path(os.environ.get("RASCHLAB_DATA_DIR") or "/tmp/reference")
+DATA_DIR = Path(os.environ.get("RASCHLAB_DATA_DIR") or "")
 
 # Slack for the summary statistics derived from the estimated measures.
 MEASURE_SLACK = 0.05

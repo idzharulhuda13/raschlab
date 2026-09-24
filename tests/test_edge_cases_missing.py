@@ -3,7 +3,7 @@ and zero-variance (perfect / zero-score) persons.
 
 Every fixture is written under ``tmp_path`` and driven through
 ``raschlab.cli.run_analyze``; nothing here needs the reference data under
-/tmp/reference. Expected item counts and scores are re-derived from the item
+/tmp/raschlab-reference. Expected item counts and scores are re-derived from the item
 strings that were written, with an independent minimum implementation of the
 missing-response rule, so no expected number is a copied guess.
 

@@ -14,7 +14,11 @@ from raschlab.conventions import read_person_deletes, classify_persons
 
 
 def main():
-    data_dir = os.environ.get("RASCHLAB_DATA_DIR", "/tmp/reference")
+    data_dir = os.environ.get("RASCHLAB_DATA_DIR")
+    if not data_dir or not os.path.exists(data_dir):
+        print(f"Skipping: data directory not found at {data_dir}")
+        sys.exit(0)
+
     golden_json_path = os.environ.get("RASCHLAB_WINSTEPS_JSON", "/tmp/winsteps_items_kuantitatif.json")
 
     if not os.path.exists(golden_json_path):
@@ -33,7 +37,7 @@ def main():
     with open(golden_json_path, "r", encoding="utf-8") as f:
         golden = json.load(f)
 
-    # Sort golden by item entry number 1..147
+    # Sort golden by item entry number
     golden_by_entry = sorted(golden, key=lambda x: x["entry"])
     golden_measures = np.array([g["measure"] for g in golden_by_entry], dtype=float)
     golden_counts = np.array([g["count"] for g in golden_by_entry], dtype=int)
@@ -139,7 +143,7 @@ def main():
 
     print()
     print("Criteria evaluation:")
-    print(f"  (a) per-item COUNT identical for all 147 items: {'PASS' if pass_a else 'FAIL'} ({count_matches}/{len(golden_counts)})")
+    print(f"  (a) per-item COUNT identical for all items: {'PASS' if pass_a else 'FAIL'} ({count_matches}/{len(golden_counts)})")
     print(f"  (b) correlation >= 0.999: {'PASS' if pass_b else 'FAIL'} ({corr:.6f})")
     print(f"  (c) max absolute measure difference <= 0.05: {'PASS' if pass_c else 'FAIL'} ({max_abs_diff:.4f})")
     print(f"  (d) max rank displacement <= 2 and no item above 2: {'PASS' if pass_d else 'FAIL'} (max_disp={max_rank_disp:.2f}, above_2={items_above_2})")

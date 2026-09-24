@@ -55,6 +55,9 @@ RUNS = {
 
 def load_golden(path=GOLDEN_PATH):
     """Load golden anchor + displace values as {tag: {item_number: dict}}."""
+    if not os.path.isfile(path):
+        print(f"Golden JSON not found: {path}. Skipping gracefully.")
+        sys.exit(0)
     with open(path, "r", encoding="utf-8") as f:
         raw = json.load(f)
     return {tag: {int(k): v for k, v in items.items()} for tag, items in raw.items()}
@@ -118,12 +121,16 @@ def check_run(tag, golden, data_dir):
 
 
 def main():
-    data_dir = os.environ.get("RASCHLAB_DATA_DIR", "/tmp/reference")
+    data_dir = os.environ.get("RASCHLAB_DATA_DIR")
 
-    if not os.path.isdir(data_dir):
+    if not data_dir or not os.path.isdir(data_dir):
         print(
             "Data directory %s not found; skipping unanchored regression check." % data_dir
         )
+        sys.exit(0)
+
+    if not os.path.isfile(GOLDEN_PATH):
+        print(f"Golden JSON not found: {GOLDEN_PATH}. Skipping gracefully.")
         sys.exit(0)
 
     golden = load_golden()

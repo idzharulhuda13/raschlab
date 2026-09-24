@@ -86,7 +86,7 @@ Output tables replicate the structure used in Winsteps and in the target analyti
 | 11 | PTMEASUR-AL EXP. | Expected point-measure correlation (see formula below) |
 | 12 | EXACT MATCH OBS% | Observed percentage of exact response matches |
 | 13 | EXACT MATCH EXP% | Model expected percentage of exact response matches |
-| 14 | ITEM | Item label from the `ILABEL` file (e.g. `01tbskda26a01`), matching Winsteps TABLE 15.1's ITEM column; empty when no label file was resolved |
+| 14 | ITEM | Item label from the `ILABEL` file (e.g. `contoh_kode_kolom`), matching Winsteps TABLE 15.1's ITEM column; empty when no label file was resolved |
 
 The ITEM label column is appended LAST, after the 13 measured columns the earlier
 revisions already emitted, so existing consumers reading by position or header
@@ -103,7 +103,7 @@ name are unaffected.
 ### Person Table (`person_table.csv` / Sheet `person`)
 Columns 1–13 identical in layout to Item Table above, plus Column 14 (`PERSON`): person label string, and Column 15 (`RANK`): the misfit rank letter. Extreme persons are excluded from this table.
 
-Row order follows Winsteps TABLE 6.1 with `--person-order misfit` (the default): reported non-extreme persons sorted by OUTFIT MNSQ descending, ties broken by entry ascending. `--person-order entry` restores input order. The `RANK` column carries `A`–`Z` on the 26 most misfitting rows and `a`–`z` on the 26 least misfitting ones (the last row is `a`), empty in between — the same letter sets as the golden TABLE 6.1, verified 26/26 at both tails on all six reference runs.
+Row order follows Winsteps TABLE 6.1 with `--person-order misfit` (the default): reported non-extreme persons sorted by OUTFIT MNSQ descending, ties broken by entry ascending. `--person-order entry` restores input order. The `RANK` column carries `A`--`Z` on the 26 most misfitting rows and `a`--`z` on the 26 least misfitting ones (the last row is `a`), empty in between -- the same letter sets as the reference TABLE 6.1, verified 26/26 at both tails on all six reference runs.
 
 **Person EXP. Formula** (for person $i$, over the $N$ items answered by person $i$):
 - $P_{ij} = 1 / (1 + \exp(-(b_i - d_j)))$
@@ -140,11 +140,11 @@ Row order follows Winsteps TABLE 6.1 with `--person-order misfit` (the default):
   - `SE MEAN`: Standard error of the mean, `P.SD / sqrt(COUNT)`.
   - `ITEM`: Item label, identical to regular rows.
 
-### Wright Map — chosen format: `wright_map_measure.csv` (Sheet `wright_measure`)
+### Wright Map -- chosen format: `wright_map_measure.csv` (Sheet `wright_measure`)
 
 `wright_map_measure.csv` is the Wright map this project uses. It keeps the person bar and
-the item side **on the same row** — `NR_PERSON` / `PERSON_HIST` on the left, `NR_ITEM` /
-`ITEMS` / `ITEM_HIST` on the right — so a bin can be read as one line ("this bin holds
+the item side **on the same row** -- `NR_PERSON` / `PERSON_HIST` on the left, `NR_ITEM` /
+`ITEMS` / `ITEM_HIST` on the right -- so a bin can be read as one line ("this bin holds
 159 persons and 26 items") and still be sorted, filtered and cross-checked against
 `item_table_15.1.csv` / `person_table.csv`. Every row is one measure bin of width 0.25
 logit, spanning `floor(min/0.25) .. ceil(max/0.25)`.
@@ -183,7 +183,7 @@ over the ranked person measures).
 - **`wright_map.txt`** (optional extra): monospaced rendering of the same numbers, one
   76-character line per bin, person bar left of `|` and item side right of it, with a
   legend whose unit is the scale actually drawn (`EACH "#" IS n: EACH "|" IS 1`). Written
-  by `scripts/wright_maps.py`; not embedded in the workbook. Use the CSV instead — the
+  by `scripts/wright_maps.py`; not embedded in the workbook. Use the CSV instead -- the
   text map loses the sortable columns.
 
 ### Summary Table (`summary_table.csv` / Sheet `summary`)

@@ -18,7 +18,11 @@ from raschlab.summary import item_summary, person_summary
 
 
 def main():
-    data_dir = os.environ.get("RASCHLAB_DATA_DIR", "/tmp/reference")
+    data_dir = os.environ.get("RASCHLAB_DATA_DIR")
+    if not data_dir or not os.path.exists(data_dir):
+        print(f"SKIP: RASCHLAB_DATA_DIR not set or directory not found: {data_dir}")
+        sys.exit(0)
+
     con_path = os.path.join(data_dir, "cfile_kuantitatif.CON")
     data_path = os.path.join(data_dir, "kuantitatif_data.prn")
     iafile_path = os.path.join(data_dir, "iafile_kuantitatif.TXT")
@@ -126,7 +130,7 @@ def main():
             max_diff_person_exp = float(max(person_diffs))
 
     print("=" * 65)
-    print("WINSTEPS FIT COMPARISON (Kuantitatif 147 Items)")
+    print("WINSTEPS FIT COMPARISON (Kuantitatif)")
     print("=" * 65)
     print(f"{'Metric':<25} {'RaschLab':<12} {'Golden':<12} {'Difference':<12}")
     print("-" * 65)
