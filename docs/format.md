@@ -33,6 +33,9 @@ If a line is shorter than `ITEM1 - 1 + NI`, missing item columns are right-padde
 - If equal to `KEY1[j]`: scored `1.0`.
 - If valid response character in `CODES` but not equal: scored `0.0`.
 - Characters `' '` (blank/unanswered) and `'X'` (unscored/omitted): scored as missing (`NaN`, `mask=False`).
+- Validity comes from `CODES`; a control file without `CODES` behaves as `A`-`E`.
+- `MISSCORE` semantics: a non-numeric value (e.g. `E`) is read as a character list and its characters count as missing; a numeric value (e.g. `-1` or `-0.5`) is a score value in Winsteps and removes nothing, so a code that `CODES` declares valid is always scored. Score substitution for responses outside `CODES` is not implemented: those responses are missing in either case.
+- A run in which every cell ends up missing raises an error naming `CODES` instead of writing a zeroed table.
 
 ### Item Anchor File (`IAFILE`)
 Plain text file specifying pre-anchored item difficulties.

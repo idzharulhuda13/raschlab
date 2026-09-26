@@ -171,7 +171,7 @@ def run_analyze(
 
     # Score responses and classify persons
     try:
-        x, mask = score(labels, rows, key)
+        x, mask = score(labels, rows, key, codes=con.get("CODES"), misscore=con.get("MISSCORE"))
     except Exception as e:
         print(f"Error scoring responses: {e}", file=sys.stderr)
         sys.exit(2)
@@ -459,7 +459,13 @@ def run_suggest_deletes(
             raise ValueError("Missing required control file parameter (ITEM1, NI, NAMLEN, or KEY1)")
 
         labels, rows = read_matrix(data_path, item1, ni, namlen)
-        x, mask = score(labels, rows, key)
+        x, mask = score(
+            labels,
+            rows,
+            key,
+            codes=con.get("CODES") or con.get("codes"),
+            misscore=con.get("MISSCORE") or con.get("misscore"),
+        )
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(2)

@@ -38,7 +38,7 @@ The reference baselines themselves are not distributed because they derive from 
 | Area | State |
 |---|---|
 | `.CON` control parsing (NI, ITEM1, NAME1, NAMLEN, KEY1, CODES, MISSCORE, anchors, delete list) | done, verified |
-| Fixed-width response reader + scoring (`X` and blank = missing) | done, verified (item COUNT matches across all items) |
+| Fixed-width response reader + scoring (`CODES` alphabet, `MISSCORE`, `X`/blank = missing, all-missing run refused) | done, verified (item COUNT matches across all items; 0/1 input regression `tests/test_scoring_codes.py`) |
 | Estimation: PROX start + JMLE | done -- two modes, see below |
 | Person accounting (lacking / deleted / extreme) | done -- `REPORTED:` matches Winsteps exactly in all six runs (about two thousand respondents per run) |
 | Item anchors (`IAFILE`) and person delete list (`PDFILE`) | done, verified |

@@ -1,3 +1,5 @@
+NUMERIC_DIRECTIVES = ("NAME1", "ITEM1", "NI", "NAMLEN", "MISSCORE")
+
 def parse_control(path: str) -> dict:
     with open(path, "r", encoding="utf-8") as f:
         lines = f.readlines()
@@ -31,11 +33,20 @@ def parse_control(path: str) -> dict:
         key_raw, val_raw = content.split("=", 1)
         key = key_raw.strip().upper()
         val = val_raw.strip()
-        if key != "KEY1":
-            if val.isdigit() or (val.startswith(("-", "+")) and len(val) > 1 and val[1:].isdigit()):
+        # Only the directives that are genuinely numbers become numbers. Everything else stays the
+        # string it is, because converting it changes its meaning: int("01") is 1, so a digit-only
+        # response alphabet (CODES = 01) would lose its leading zero, and str(1) is "1", so a file
+        # directive (DATA = 1234) would be looked up as a number instead of a path. A decimal
+        # MISSCORE (=-0.5) must arrive as a value, never as a character list: read as characters it
+        # would silently unscore a code that CODES declares valid.
+        if key in NUMERIC_DIRECTIVES:
+            try:
                 result[key] = int(val)
-            else:
-                result[key] = val
+            except ValueError:
+                try:
+                    result[key] = float(val)
+                except ValueError:
+                    result[key] = val
         else:
             result[key] = val
 
