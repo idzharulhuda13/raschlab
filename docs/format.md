@@ -21,6 +21,7 @@ Key parameters:
 - `ILABEL`: (Optional) Path to `.prn` item labels file.
 - `IAFILE`: (Optional) Path to item anchor file.
 - `PDFILE`: (Optional) Path to person delete file.
+- `IDFILE`: (Optional) Path to item delete file.
 
 ### Data Matrix (`.prn`)
 A fixed-width text file where each line corresponds to a single person:
@@ -50,6 +51,27 @@ Plain text file listing persons to exclude from calibrations and reported tables
 - Entry numbers must be within `1 .. number_of_persons`.
 - Blank lines and comment lines (starting with `#`) are ignored.
 
+### Item Delete File (`IDFILE`)
+Plain text file listing items to remove from the analysis.
+- Format: one 1-based `ITEM` entry number per line.
+- Entry numbers must be within `1 .. NI`.
+- Blank lines and comment lines (starting with `#`) are ignored.
+- An empty file means no deletes.
+
+What deletion does:
+- The item's column is removed from the scored matrix **before** scoring, so person
+  `SCORE`/`COUNT`, the extreme/lacking classification, the calibration, the fit
+  statistics and every summary are computed over the reduced item set.
+- The deleted item still appears in `item_table_15.1.csv` as a row with
+  `STATUS = deleted` and blank measure/fit cells (its `SCORE`/`COUNT` stay filled).
+- `summary_table.csv` gains a final `COUNTS / ITEM DELETED` row, and the console
+  prints `Deleted items : N`.
+- Deleted items are **excluded** from `option_table_15.3.csv` and from
+  `wright_map_measure.csv`.
+
+Not verified against the reference tool: no vendor run in this project carries
+`IDFILE=`, so the behaviour is documented and pinned by tests only.
+
 ---
 
 ## 2. Model & Estimation Conventions
@@ -65,6 +87,7 @@ Plain text file listing persons to exclude from calibrations and reported tables
   - `extreme_min`: Non-lacking persons with raw score 0 (`SCORE == 0`).
   - `extreme_max`: Non-lacking persons with maximum score (`SCORE == COUNT`).
   - `keep`: All persons except lacking and deleted (`~lacking & ~deleted`).
+  - Person `STATUS` precedence (highest first): `deleted` > `lacking` > `extreme_min` > `extreme_max` > `kept`.
   - Item calibrations use all `keep` persons (including extremes). Person measure tables exclude extreme persons.
 
 ---
@@ -90,10 +113,11 @@ Output tables replicate the structure used in Winsteps and in the target analyti
 | 12 | EXACT MATCH OBS% | Observed percentage of exact response matches |
 | 13 | EXACT MATCH EXP% | Model expected percentage of exact response matches |
 | 14 | ITEM | Item label from the `ILABEL` file (e.g. `contoh_kode_kolom`), matching Winsteps TABLE 15.1's ITEM column; empty when no label file was resolved |
+| 15 | STATUS | `kept` or `deleted`; a deleted item keeps its `SCORE`/`COUNT` cells but has blank measure and fit cells |
 
-The ITEM label column is appended LAST, after the 13 measured columns the earlier
-revisions already emitted, so existing consumers reading by position or header
-name are unaffected.
+The ITEM label column is appended after the 13 measured columns the earlier
+revisions already emitted, and STATUS after ITEM, so existing consumers reading by
+position or header name are unaffected.
 
 **Item EXP. Formula** (for item $j$, over the $N$ calibrated persons who answered item $j$):
 - $P_{ij} = 1 / (1 + \exp(-(b_i - d_j)))$
@@ -104,7 +128,9 @@ name are unaffected.
 - $\text{EXP}_j = \frac{\text{num}}{SD_b \cdot \text{conv}}$ (guards to 0.00 if denominator is 0)
 
 ### Person Table (`person_table.csv` / Sheet `person`)
-Columns 1–13 identical in layout to Item Table above, plus Column 14 (`PERSON`): person label string, and Column 15 (`RANK`): the misfit rank letter. Extreme persons are excluded from this table.
+Columns 1–13 identical in layout to Item Table above, plus Column 14 (`PERSON`): person label string, and Column 15 (`RANK`): the misfit rank letter (`A`–`Z` / `a`–`z` on the kept block, empty with `--person-order entry`).
+
+Columns 16–19 extend the table: `NAME` (optional; present only when a name source is configured, otherwise `CANDIDATE` sits at column 16), `CANDIDATE` (`yes` on flagged rows), `REASON` (the flag reason text) and `STATUS`. The kept block is followed by one appended row per excluded person, in ascending entry order, with `MEASURE`, `S.E.`, the fit cells, `CORR.`, `OBS%` and `EXP%` blank but `SCORE` and `COUNT` filled, and `RANK`, `CANDIDATE`, `REASON` blank. `STATUS` vocabulary: `deleted`, `lacking`, `extreme_min`, `extreme_max`, `kept`, assigned by the precedence above. The `STATUS` column and the appended excluded rows are additions the reference does not print (it hides excluded persons entirely), so parity is scoped to the kept block.
 
 Row order follows Winsteps TABLE 6.1 with `--person-order misfit` (the default): reported non-extreme persons sorted by OUTFIT MNSQ descending, ties broken by entry ascending. `--person-order entry` restores input order. The `RANK` column carries `A`--`Z` on the 26 most misfitting rows and `a`--`z` on the 26 least misfitting ones (the last row is `a`), empty in between -- the same letter sets as the reference TABLE 6.1, verified 26/26 at both tails on all six reference runs.
 
@@ -197,7 +223,8 @@ Each section also carries its **TOTAL SCORE** block as `SECTION TOTAL SCORE` row
 summary: the item section covers the item raw scores, the two person sections the person raw scores
 (non-extreme population, then the extreme-included population). `SEM` is the sample SD over `sqrt(N)`,
 the reference's own convention; `S.SD` is the sample SD (`ddof=1`) and `P.SD` the population SD
-(`ddof=0`).
+(`ddof=0`). A final `COUNTS / ITEM DELETED` row reports the number of item columns removed by
+`IDFILE` (0 when no item delete file was given).
 
 ---
 

@@ -108,6 +108,10 @@ def _data_rows(path, header_rows):
     return _read_csv(path)[header_rows:]
 
 
+def _kept(rows):
+    return [r for r in rows if r[17] == "kept"]
+
+
 def _summary_values(path):
     """{(SECTION, STATISTIC): VALUE} from summary_table.csv."""
     out = {}
@@ -172,7 +176,7 @@ def test_every_person_extreme_reports_no_calibrated_persons(tmp_path, capsys):
 
     # The person table carries the two header rows and no person rows at all.
     person_rows = _data_rows(os.path.join(out_dir, "person_table.csv"), PERSON_HEADER_ROWS)
-    assert person_rows == []
+    assert _kept(person_rows) == []
 
     summary = _summary_values(os.path.join(out_dir, "summary_table.csv"))
     assert summary[("PERSON", "COUNT")] == "0"
@@ -260,13 +264,18 @@ def test_zstd_clip_holds_for_every_reported_zstd(tmp_path):
     item_rows = _data_rows(os.path.join(out_dir, "item_table_15.1.csv"), ITEM_HEADER_ROWS)
     person_rows = _data_rows(os.path.join(out_dir, "person_table.csv"), PERSON_HEADER_ROWS)
     assert len(item_rows) == 5
-    assert len(person_rows) == 21  # 25 persons minus the 4 perfect papers
+    assert len(_kept(person_rows)) == 21  # 25 persons minus the 4 perfect papers
 
     # The case really does carry a very large outfit statistic.
     assert max(float(r[COL_OUTFIT_MNSQ]) for r in item_rows) > 1000.0
-    assert max(float(r[COL_OUTFIT_MNSQ]) for r in person_rows) > 1000.0
+    assert max(float(r[COL_OUTFIT_MNSQ]) for r in _kept(person_rows)) > 1000.0
 
-    for row in item_rows + person_rows:
+    for row in item_rows:
+        for col in (COL_INFIT_ZSTD, COL_OUTFIT_MNSQ, COL_OUTFIT_ZSTD):
+            _assert_finite(row, [col], "clip case")
+        assert abs(float(row[COL_INFIT_ZSTD])) <= 9.9
+        assert abs(float(row[COL_OUTFIT_ZSTD])) <= 9.9
+    for row in _kept(person_rows):
         for col in (COL_INFIT_ZSTD, COL_OUTFIT_MNSQ, COL_OUTFIT_ZSTD):
             _assert_finite(row, [col], "clip case")
         assert abs(float(row[COL_INFIT_ZSTD])) <= 9.9
@@ -275,10 +284,10 @@ def test_zstd_clip_holds_for_every_reported_zstd(tmp_path):
     # The clip is active, not a no-op: the strongest item outfit (MNSQ 2606.00)
     # and the contradicting persons all land exactly on 9.90.
     assert [r[COL_OUTFIT_ZSTD] for r in item_rows] == ["9.90", "1.83", "-0.38", "1.43", "9.26"]
-    assert sum(1 for r in person_rows if r[COL_OUTFIT_ZSTD] == "9.90") == 11
+    assert sum(1 for r in _kept(person_rows) if r[COL_OUTFIT_ZSTD] == "9.90") == 11
     # ... while other values in the same tables are free to sit below it.
     assert any(abs(float(r[COL_OUTFIT_ZSTD])) < 9.9 for r in item_rows)
-    person_by_label = {row[13]: row for row in person_rows}
+    person_by_label = {row[13]: row for row in _kept(person_rows)}
     assert person_by_label["P025"][COL_OUTFIT_ZSTD] == "9.90"  # missed the easiest item
     assert person_by_label["P011"][COL_OUTFIT_ZSTD] == "3.04"  # same table, unclipped
 

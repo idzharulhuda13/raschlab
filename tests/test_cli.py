@@ -259,8 +259,8 @@ class TestCLI(unittest.TestCase):
             person_rows = list(csv.reader(f))
         self.assertGreater(len(person_rows), 2)
         for r in person_rows[2:]:
-            # Non-empty person label column
-            self.assertTrue(len(r[-1].strip()) > 0)
+            # Non-empty person label column (col 13; r[-1] is now STATUS)
+            self.assertTrue(len(r[13].strip()) > 0)
 
     def test_analyze_missing_labels_warns_and_succeeds(self):
         out_dir = os.path.join(self.tmpdir, "out_missing_labels")
@@ -300,7 +300,8 @@ class TestCLI(unittest.TestCase):
             person_rows = list(csv.reader(f))
         self.assertGreater(len(person_rows), 2)
         for r in person_rows[2:]:
-            self.assertTrue(len(r[-1].strip()) > 0)
+            # Non-empty person label column (col 13; r[-1] is now STATUS)
+            self.assertTrue(len(r[13].strip()) > 0)
 
     def test_analyze_help_documents_labels(self):
         with patch("sys.stdout", new_callable=io.StringIO) as mock_out:

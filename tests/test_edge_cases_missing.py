@@ -94,6 +94,10 @@ def read_csv(out_dir, name):
         return list(csv.reader(f))
 
 
+def _kept(rows):
+    return [r for r in rows if r[17] == "kept"]
+
+
 def summary_value(stdout, prefix):
     """Leading integer of the summary line starting with ``prefix``.
 
@@ -232,10 +236,10 @@ def test_missing_responses_count_observed_and_all_numeric_cells_finite(tmp_path)
     assert n_input == n_reported + n_lacking
 
     person_rows = read_csv(out_dir, PERSON_TABLE)
-    reported = [r[13] for r in person_rows[2:]]
+    reported = [r[13] for r in _kept(person_rows[2:])]
     assert "P008" not in reported  # lacking
     assert "P009" not in reported  # extreme (1/1), but still counted as reported
-    assert_numeric_rows_finite(person_rows, first_numeric_cols=13)
+    assert_numeric_rows_finite(person_rows[:2] + _kept(person_rows[2:]), first_numeric_cols=13)
 
 
 # ---------------------------------------------------------------------------
@@ -312,9 +316,9 @@ def test_zero_variance_persons_extreme_no_warnings_and_counts_add_up(tmp_path):
 
     # They are dropped from the person table (calibration set) ...
     person_rows = read_csv(out_dir, PERSON_TABLE)
-    reported = {r[13] for r in person_rows[2:]}
+    reported = {r[13] for r in _kept(person_rows[2:])}
     assert reported == {"P003", "P004", "P005", "P006", "P007", "P008"}
-    assert_numeric_rows_finite(person_rows, first_numeric_cols=13)
+    assert_numeric_rows_finite(person_rows[:2] + _kept(person_rows[2:]), first_numeric_cols=13)
 
     # ... and the summary counts add up: input = deleted + lacking + extreme + calibrated
     srows = read_csv(out_dir, SUMMARY_TABLE)

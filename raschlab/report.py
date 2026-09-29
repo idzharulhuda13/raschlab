@@ -4,6 +4,7 @@ import openpyxl
 from openpyxl.utils import get_column_letter
 
 from raschlab.distractor import option_table
+from raschlab.suggest import suggest_by_fit
 from raschlab.wright import (
     FREQ_HEADER_ROW_1,
     FREQ_HEADER_ROW_2,
@@ -131,18 +132,33 @@ def fill_sheet(ws, header_rows, data_rows, fmt_for, freeze_panes="A3"):
 # the item code (e.g. 01tbskda26a01) rather than only the ENTRY number.  It is
 # the last column, so every pre-existing column keeps its name, order and index.
 ITEM_HEADER_ROW_1 = [
-    "ENTRY", "TOTAL", "TOTAL", "JMLE", "MODEL", "INFIT", "", "OUTFIT", "", "PTMEASUR-AL", "", "EXACT", "MATCH", ""
+    "ENTRY", "TOTAL", "TOTAL", "JMLE", "MODEL", "INFIT", "", "OUTFIT", "", "PTMEASUR-AL", "", "EXACT", "MATCH", "", ""
 ]
 ITEM_HEADER_ROW_2 = [
-    "NUMBER", "SCORE", "COUNT", "MEASURE", "S.E.", "MNSQ", "ZSTD", "MNSQ", "ZSTD", "CORR.", "EXP.", "OBS%", "EXP%", "ITEM"
+    "NUMBER", "SCORE", "COUNT", "MEASURE", "S.E.", "MNSQ", "ZSTD", "MNSQ", "ZSTD", "CORR.", "EXP.", "OBS%", "EXP%", "ITEM", "STATUS"
 ]
 
 PERSON_HEADER_ROW_1 = [
-    "ENTRY", "TOTAL", "TOTAL", "JMLE", "MODEL", "INFIT", "", "OUTFIT", "", "PTMEASUR-AL", "", "EXACT", "MATCH", ""
+    "ENTRY", "TOTAL", "TOTAL", "JMLE", "MODEL", "INFIT", "", "OUTFIT", "", "PTMEASUR-AL", "", "EXACT", "MATCH", "", "", "", "", ""
 ]
 PERSON_HEADER_ROW_2 = [
-    "NUMBER", "SCORE", "COUNT", "MEASURE", "S.E.", "MNSQ", "ZSTD", "MNSQ", "ZSTD", "CORR.", "EXP.", "OBS%", "EXP%", "PERSON", "RANK"
+    "NUMBER", "SCORE", "COUNT", "MEASURE", "S.E.", "MNSQ", "ZSTD", "MNSQ", "ZSTD", "CORR.", "EXP.", "OBS%", "EXP%", "PERSON", "RANK", "CANDIDATE", "REASON", "STATUS"
 ]
+
+
+def person_header_rows(show_names=False):
+    """Return [row1, row2] header pair for the person sheet.
+
+    When show_names is True, insert a NAME column ('' in row1, 'NAME' in row2)
+    immediately after RANK.
+    """
+    r1 = list(PERSON_HEADER_ROW_1)
+    r2 = list(PERSON_HEADER_ROW_2)
+    if show_names:
+        rank_pos = r2.index("RANK") + 1
+        r1.insert(rank_pos, "")
+        r2.insert(rank_pos, "NAME")
+    return [r1, r2]
 
 OPTION_HEADER_ROW_1 = [
     "ENTRY", "DATA", "SCORE", "DATA", "", "ABILITY", "", "S.E.", "INFT", "OUTF", "PTMA", ""
@@ -225,6 +241,7 @@ def item_table_rows(
     extra_cols=None,
     digits=2,
     item_labels=None,
+    item_keep=None,
 ):
     """Generate item table rows matching Winsteps Table 15.1.
 
@@ -289,75 +306,91 @@ def item_table_rows(
         score_val = int(np.sum(np.where(resp_mask, X[:, j], 0.0)))
         count_val = int(np.sum(resp_mask))
 
-        meas_val = float(d[j])
-        se_val = float(fit_item["se"][j])
-        infit_mnsq = float(fit_item["infit_mnsq"][j])
-        infit_zstd = float(fit_item["infit_zstd"][j])
-        outfit_mnsq = float(fit_item["outfit_mnsq"][j])
-        outfit_zstd = float(fit_item["outfit_zstd"][j])
-
-        # Point-measure correlation over persons who answered item j in calibration set
-        b_resp = b[resp_mask]
-        x_resp = X[resp_mask, j]
-        if fit_item is not None and "ptmeas" in fit_item and fit_item["ptmeas"] is not None:
-            corr_val = float(fit_item["ptmeas"][j])
-        elif len(x_resp) > 1 and np.std(x_resp, ddof=0) > 1e-12 and np.std(b_resp, ddof=0) > 1e-12:
-            corr_val = float(np.corrcoef(x_resp, b_resp)[0, 1])
-        else:
-            corr_val = 0.0
-
-        # Expected point-measure correlation (EXP.)
-        if fit_item is not None and "exp" in fit_item and fit_item["exp"] is not None:
-            exp_val = float(fit_item["exp"][j])
-        elif len(b_resp) > 0:
-            diff = b_resp - d[j]
-            P_j = 1.0 / (1.0 + np.exp(-np.clip(diff, -30.0, 30.0)))
-            b_bar = np.mean(b_resp)
-            P_bar = np.mean(P_j)
-            num = np.mean((b_resp - b_bar) * (P_j - P_bar))
-            conv = np.sqrt(P_bar * (1.0 - P_bar))
-            sd_b = np.std(b_resp, ddof=0)
-            denom = sd_b * conv
-            exp_val = float(num / denom) if denom > 1e-12 else 0.0
-        else:
-            exp_val = 0.0
-        exp_corr = _fmt(exp_val, 2)
-
-        # Exact match percentages: OBS% and EXP%
-        if fit_item is not None and "obs_pct" in fit_item and fit_item["obs_pct"] is not None:
-            obs_pct = float(fit_item["obs_pct"][j])
-        elif len(b_resp) > 0:
-            diff = b_resp - d[j]
-            P_j = 1.0 / (1.0 + np.exp(-np.clip(diff, -30.0, 30.0)))
-            expected_resp = (P_j >= 0.5).astype(float)
-            obs_match = (x_resp == expected_resp)
-            obs_pct = float(np.mean(obs_match) * 100)
-        else:
-            obs_pct = 0.0
-
-        if fit_item is not None and "exp_pct" in fit_item and fit_item["exp_pct"] is not None:
-            exp_pct = float(fit_item["exp_pct"][j])
-        elif len(b_resp) > 0:
-            diff = b_resp - d[j]
-            P_j = 1.0 / (1.0 + np.exp(-np.clip(diff, -30.0, 30.0)))
-            exp_pct = float(np.mean(np.maximum(P_j, 1.0 - P_j)) * 100)
-        else:
-            exp_pct = 0.0
+        kept = item_keep is None or bool(item_keep[j])
 
         row = TableRow()
         row["ENTRY"] = j + 1
         row["SCORE"] = score_val
         row["COUNT"] = count_val
-        row["MEASURE"] = _fmt(meas_val, digits)
-        row["S.E."] = _fmt(se_val, digits)
-        row["INFIT MNSQ"] = _fmt(infit_mnsq, 2)
-        row["INFIT ZSTD"] = _fmt(infit_zstd, 2)
-        row["OUTFIT MNSQ"] = _fmt(outfit_mnsq, 2)
-        row["OUTFIT ZSTD"] = _fmt(outfit_zstd, 2)
-        row["CORR."] = _fmt(corr_val, 2)
-        row["EXP."] = exp_corr
-        row["OBS%"] = _fmt(obs_pct, 1)
-        row["EXP%"] = _fmt(exp_pct, 1)
+
+        if not kept:
+            # Deleted item: emit SCORE/COUNT from pristine matrices, blank everything else
+            row["MEASURE"] = ""
+            row["S.E."] = ""
+            row["INFIT MNSQ"] = ""
+            row["INFIT ZSTD"] = ""
+            row["OUTFIT MNSQ"] = ""
+            row["OUTFIT ZSTD"] = ""
+            row["CORR."] = ""
+            row["EXP."] = ""
+            row["OBS%"] = ""
+            row["EXP%"] = ""
+        else:
+            meas_val = float(d[j])
+            se_val = float(fit_item["se"][j])
+            infit_mnsq = float(fit_item["infit_mnsq"][j])
+            infit_zstd = float(fit_item["infit_zstd"][j])
+            outfit_mnsq = float(fit_item["outfit_mnsq"][j])
+            outfit_zstd = float(fit_item["outfit_zstd"][j])
+
+            # Point-measure correlation over persons who answered item j in calibration set
+            b_resp = b[resp_mask]
+            x_resp = X[resp_mask, j]
+            if fit_item is not None and "ptmeas" in fit_item and fit_item["ptmeas"] is not None:
+                corr_val = float(fit_item["ptmeas"][j])
+            elif len(x_resp) > 1 and np.std(x_resp, ddof=0) > 1e-12 and np.std(b_resp, ddof=0) > 1e-12:
+                corr_val = float(np.corrcoef(x_resp, b_resp)[0, 1])
+            else:
+                corr_val = 0.0
+
+            # Expected point-measure correlation (EXP.)
+            if fit_item is not None and "exp" in fit_item and fit_item["exp"] is not None:
+                exp_val = float(fit_item["exp"][j])
+            elif len(b_resp) > 0:
+                diff = b_resp - d[j]
+                P_j = 1.0 / (1.0 + np.exp(-np.clip(diff, -30.0, 30.0)))
+                b_bar = np.mean(b_resp)
+                P_bar = np.mean(P_j)
+                num = np.mean((b_resp - b_bar) * (P_j - P_bar))
+                conv = np.sqrt(P_bar * (1.0 - P_bar))
+                sd_b = np.std(b_resp, ddof=0)
+                denom = sd_b * conv
+                exp_val = float(num / denom) if denom > 1e-12 else 0.0
+            else:
+                exp_val = 0.0
+            exp_corr = _fmt(exp_val, 2)
+
+            # Exact match percentages: OBS% and EXP%
+            if fit_item is not None and "obs_pct" in fit_item and fit_item["obs_pct"] is not None:
+                obs_pct = float(fit_item["obs_pct"][j])
+            elif len(b_resp) > 0:
+                diff = b_resp - d[j]
+                P_j = 1.0 / (1.0 + np.exp(-np.clip(diff, -30.0, 30.0)))
+                expected_resp = (P_j >= 0.5).astype(float)
+                obs_match = (x_resp == expected_resp)
+                obs_pct = float(np.mean(obs_match) * 100)
+            else:
+                obs_pct = 0.0
+
+            if fit_item is not None and "exp_pct" in fit_item and fit_item["exp_pct"] is not None:
+                exp_pct = float(fit_item["exp_pct"][j])
+            elif len(b_resp) > 0:
+                diff = b_resp - d[j]
+                P_j = 1.0 / (1.0 + np.exp(-np.clip(diff, -30.0, 30.0)))
+                exp_pct = float(np.mean(np.maximum(P_j, 1.0 - P_j)) * 100)
+            else:
+                exp_pct = 0.0
+
+            row["MEASURE"] = _fmt(meas_val, digits)
+            row["S.E."] = _fmt(se_val, digits)
+            row["INFIT MNSQ"] = _fmt(infit_mnsq, 2)
+            row["INFIT ZSTD"] = _fmt(infit_zstd, 2)
+            row["OUTFIT MNSQ"] = _fmt(outfit_mnsq, 2)
+            row["OUTFIT ZSTD"] = _fmt(outfit_zstd, 2)
+            row["CORR."] = _fmt(corr_val, 2)
+            row["EXP."] = exp_corr
+            row["OBS%"] = _fmt(obs_pct, 1)
+            row["EXP%"] = _fmt(exp_pct, 1)
 
         if extra_cols:
             for k, vals in extra_cols.items():
@@ -367,6 +400,7 @@ def item_table_rows(
         # column.  Added LAST so the 13 measured columns keep their positions;
         # it is empty (not the entry number) when no label file was resolved.
         row["ITEM"] = str(item_labels[j]) if item_labels is not None and j < len(item_labels) else ""
+        row["STATUS"] = "kept" if kept else "deleted"
 
         rows.append(row)
 
@@ -386,9 +420,21 @@ def person_table_rows(
     digits=2,
     order=None,
     rank_letters=False,
+    deleted=None,
+    names=None,
 ):
     """Generate person table rows.
-    Extreme persons are excluded and counted separately.
+
+    Rows = kept block (non-extreme calibrated persons, in display order) followed
+    by one appended row per excluded person in ascending entry order.
+
+    STATUS vocabulary
+    -----------------
+    "deleted"     person is in the deleted mask (highest precedence)
+    "lacking"     counts[i] == 0
+    "extreme_min" scores[i] == 0 and counts[i] > 0
+    "extreme_max" scores[i] == counts[i] and counts[i] > 0
+    "kept"        all others (the calibrated, non-extreme set)
 
     Parameters
     ----------
@@ -416,12 +462,16 @@ def person_table_rows(
     order : sequence of int, optional
         Sequence of person indices defining the output row order.
     rank_letters : bool, optional
-        Whether to append RANK column with rank letters (default: False).
+        Whether to assign RANK letters to kept rows (default: False).
+    deleted : bool array of length P or iterable of 1-based entries, optional
+        Persons to mark as STATUS="deleted".  None -> all False.
+    names : sequence of str of length P, optional
+        When given, a NAME column is included in every row.
 
     Returns
     -------
     TableRowList of TableRow
-        Rows for non-extreme kept persons, with attribute n_extreme_excluded.
+        Kept block + appended excluded block, with attribute n_extreme_excluded.
     """
     X = np.asarray(X, dtype=float)
     mask = np.asarray(mask, dtype=bool)
@@ -431,6 +481,21 @@ def person_table_rows(
     scores = np.nansum(X, axis=1)
     counts = np.sum(mask, axis=1)
     is_extreme = (counts == 0) | (scores == 0) | (scores == counts)
+
+    # Build deleted_mask: accept bool array of length P or iterable of 1-based entries
+    if deleted is None:
+        deleted_mask = np.zeros(P, dtype=bool)
+    else:
+        arr = np.asarray(deleted)
+        if arr.dtype.kind == 'b':
+            deleted_mask = arr.astype(bool)
+        else:
+            # iterable of 1-based entry numbers
+            deleted_mask = np.zeros(P, dtype=bool)
+            for entry_num in arr.flat:
+                idx = int(entry_num) - 1
+                if 0 <= idx < P:
+                    deleted_mask[idx] = True
 
     if keep is not None:
         kp = np.asarray(keep, dtype=bool)
@@ -443,6 +508,16 @@ def person_table_rows(
     valid_indices = np.where(valid)[0]
 
     d = np.asarray(item_measures, dtype=float) if item_measures is not None else None
+
+    # Candidate flagging: build full-length infit/outfit lists (None outside valid_indices)
+    infit_list = [None] * P
+    outfit_list = [None] * P
+    for p_idx, i in enumerate(valid_indices):
+        infit_list[i] = round(float(fit_person["infit_mnsq"][p_idx]), 2)
+        outfit_list[i] = round(float(fit_person["outfit_mnsq"][p_idx]), 2)
+    cand_list = suggest_by_fit(labels, scores, counts, infit_list, outfit_list, min_infit=1.5)
+    # ponytail: min_infit=1.5 is hardcoded; a configurable threshold would need a new param
+    cand = {c["entry"]: c["reason"] for c in cand_list}
 
     # Vectorised per-person statistics: CORR., OBS% and EXP% are computed for every
     # valid person at once (same formulas, same per-person values) instead of one
@@ -544,6 +619,13 @@ def person_table_rows(
             for k, vals in extra_cols.items():
                 row[k] = vals[i] if i < len(vals) else ""
 
+        row["RANK"] = ""
+        if names is not None:
+            row["NAME"] = names[i]
+        row["CANDIDATE"] = "yes" if entry in cand else ""
+        row["REASON"] = cand.get(entry, "")
+        row["STATUS"] = "kept"
+
         rows.append(row)
 
     if order is not None:
@@ -563,7 +645,52 @@ def person_table_rows(
             else:
                 row["RANK"] = ""
 
-    return rows
+    # Determine status for every person and append excluded persons in entry order
+    def _person_status(i):
+        if deleted_mask[i]:
+            return "deleted"
+        if counts[i] == 0:
+            return "lacking"
+        if scores[i] == 0 and counts[i] > 0:
+            return "extreme_min"
+        if scores[i] == counts[i] and counts[i] > 0:
+            return "extreme_max"
+        return "kept"
+
+    excluded = sorted(
+        [i for i in range(P) if not valid[i]],
+        key=lambda i: i,
+    )
+    for i in excluded:
+        entry = i + 1
+        status = _person_status(i)
+        label_val = str(labels[i]) if labels is not None and i < len(labels) else str(entry)
+        row = TableRow()
+        row["ENTRY"] = entry
+        row["SCORE"] = int(scores[i])
+        row["COUNT"] = int(counts[i])
+        row["MEASURE"] = ""
+        row["S.E."] = ""
+        row["INFIT MNSQ"] = ""
+        row["INFIT ZSTD"] = ""
+        row["OUTFIT MNSQ"] = ""
+        row["OUTFIT ZSTD"] = ""
+        row["CORR."] = ""
+        row["EXP."] = ""
+        row["OBS%"] = ""
+        row["EXP%"] = ""
+        row["PERSON"] = label_val
+        row["RANK"] = ""
+        if names is not None:
+            row["NAME"] = names[i]
+        row["CANDIDATE"] = ""
+        row["REASON"] = ""
+        row["STATUS"] = status
+        rows.append(row)
+
+    # Return a new TableRowList preserving n_extreme_excluded
+    result = TableRowList(rows, n_extreme_excluded=rows.n_extreme_excluded)
+    return result
 
 
 def option_rows(*args, item_labels=None, **kwargs):
@@ -858,6 +985,7 @@ def write_workbook(
     summary_rows,
     wright_measure_rows=None,
     wright_frequency_rows=None,
+    person_headers=None,
 ):
     """Write XLSX workbook containing sheets: '15.1', 'person', '15.3', 'summary'.
 
@@ -870,6 +998,10 @@ def write_workbook(
     number format (so decimals survive a paste into Google Sheets) and column
     widths fit the header text. Text labels and genuinely empty cells are kept
     as-is.
+
+    person_headers : list of two lists, optional
+        Header rows for the person sheet.  Defaults to
+        [PERSON_HEADER_ROW_1, PERSON_HEADER_ROW_2].
     """
     wb = openpyxl.Workbook()
     default_sheet = wb.active
@@ -880,6 +1012,8 @@ def write_workbook(
     def summary_fmt(name, value):
         return summary_value_format(value)
 
+    p_headers = person_headers or [PERSON_HEADER_ROW_1, PERSON_HEADER_ROW_2]
+
     # Sheet 15.1 (Items)
     ws_item = wb.create_sheet(title="15.1")
     fill_sheet(
@@ -888,15 +1022,19 @@ def write_workbook(
         [list(r.values()) for r in item_rows],
         table_fmt,
     )
+    if ws_item.max_row > 2:
+        ws_item.auto_filter.ref = f"A2:{get_column_letter(ws_item.max_column)}{ws_item.max_row}"
 
     # Sheet person (Persons)
     ws_person = wb.create_sheet(title="person")
     fill_sheet(
         ws_person,
-        [PERSON_HEADER_ROW_1, PERSON_HEADER_ROW_2],
+        p_headers,
         [list(r.values()) for r in person_rows],
         table_fmt,
     )
+    if ws_person.max_row > 2:
+        ws_person.auto_filter.ref = f"A2:{get_column_letter(ws_person.max_column)}{ws_person.max_row}"
 
     # Sheet 15.3 (Options)
     ws_opt = wb.create_sheet(title="15.3")
@@ -939,3 +1077,4 @@ def write_workbook(
 
     wb.remove(default_sheet)
     wb.save(path)
+

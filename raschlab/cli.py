@@ -20,6 +20,7 @@ from raschlab.suggest import suggest_by_fit
 from raschlab.report import (
     item_table_rows,
     person_table_rows,
+    person_header_rows,
     option_rows,
     summary_rows,
     write_csv,
@@ -48,11 +49,14 @@ def run_analyze(
     out_dir=".",
     anchors_path=None,
     pdfile_path=None,
+    idfile_path=None,
     mode="compat",
     out_format="both",
     digits=2,
     lconv=None,
     person_order="misfit",
+    roster_path=None,
+    show_names=False,
 ):
     start_time = time.time()
 
@@ -153,6 +157,25 @@ def run_analyze(
 
     n_persons = len(labels)
 
+    # Optional roster CSV (id,name).  The id is matched as TEXT so leading zeros
+    # survive; the NAME column is PII and is only ever written with --show-names.
+    names = None
+    if roster_path:
+        if not os.path.isfile(roster_path):
+            print(f"Error: roster not found: {roster_path}", file=sys.stderr)
+            sys.exit(2)
+        with open(roster_path, "r", encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            fields = {(name or "").strip().lower(): name for name in (reader.fieldnames or [])}
+            if "id" not in fields or "name" not in fields:
+                print("Error: roster must have a header row with id,name", file=sys.stderr)
+                sys.exit(2)
+            roster = {str(r[fields["id"]]).strip(): str(r[fields["name"]]).strip() for r in reader}
+        matched = sum(1 for lbl in labels if str(lbl).strip() in roster)
+        print(f"roster: {matched}/{n_persons} labels matched")
+        if show_names:
+            names = [roster.get(str(lbl).strip(), "") for lbl in labels]
+
     # Read PDFILE (optional)
     deleted_entries = set()
     if pdfile_path:
@@ -169,11 +192,70 @@ def run_analyze(
                 print(f"Error: PDFILE contains person entry {entry} outside 1..{n_persons}", file=sys.stderr)
                 sys.exit(2)
 
+    # Resolve IDFILE: explicit flag wins; otherwise try con.get("IDFILE") as-is
+    # then as basename inside dirname(con_path). A control-file IDFILE that cannot
+    # be resolved is an error (like PDFILE), because silently ignoring a declared
+    # delete list would change the analysis.
+    deleted_items = set()
+    resolved_idfile = idfile_path
+    if not resolved_idfile:
+        con_idfile = con.get("IDFILE")
+        if con_idfile:
+            if os.path.isfile(con_idfile):
+                resolved_idfile = con_idfile
+            else:
+                base_name = os.path.basename(con_idfile.replace("\\", "/"))
+                cand = os.path.join(os.path.dirname(con_path), base_name)
+                if os.path.isfile(cand):
+                    resolved_idfile = cand
+                else:
+                    print(f"Error: IDFILE not found: {con_idfile}", file=sys.stderr)
+                    sys.exit(2)
+    if idfile_path and not os.path.isfile(idfile_path):
+        print(f"Error: IDFILE not found: {idfile_path}", file=sys.stderr)
+        sys.exit(2)
+    if resolved_idfile:
+        try:
+            deleted_items = read_person_deletes(resolved_idfile)
+        except Exception as e:
+            print(f"Error reading IDFILE: {e}", file=sys.stderr)
+            sys.exit(2)
+        for entry in deleted_items:
+            if entry < 1 or entry > ni:
+                print(f"Error: IDFILE contains item entry {entry} outside 1..{ni}", file=sys.stderr)
+                sys.exit(2)
+
+    if anchors and deleted_items:
+        for item_num in sorted(a for a in anchors if a in deleted_items):
+            print(
+                f"Warning: anchored item {item_num} is deleted by IDFILE; its anchor is ignored",
+                file=sys.stderr,
+            )
+        anchors = {a: v for a, v in anchors.items() if a not in deleted_items}
+        if not anchors:
+            anchors = None
+            print(
+                "Warning: every anchored item was deleted by IDFILE; running unanchored",
+                file=sys.stderr,
+            )
+
     # Score responses and classify persons
     try:
         x, mask = score(labels, rows, key, codes=con.get("CODES"), misscore=con.get("MISSCORE"))
     except Exception as e:
         print(f"Error scoring responses: {e}", file=sys.stderr)
+        sys.exit(2)
+
+    x_all, mask_all = x.copy(), mask.copy()
+    for j in deleted_items:
+        x[:, j - 1] = np.nan
+        mask[:, j - 1] = False
+
+    if deleted_items and len(deleted_items) < ni and not bool(np.any(mask)):
+        print(
+            "Error: every cell is missing after the IDFILE deletes; the remaining items carry no responses",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
     counts = np.sum(mask, axis=1)
@@ -190,6 +272,17 @@ def run_analyze(
             file=sys.stderr,
         )
         sys.exit(2)
+
+    item_keep = np.ones(ni, dtype=bool)
+    if deleted_items:
+        item_keep[np.array(sorted(deleted_items), dtype=int) - 1] = False
+        if int(np.sum(item_keep)) == 0:
+            print(
+                "Error: no items remain after the IDFILE deletes; nothing to analyse",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+    n_del_items = int(np.sum(~item_keep))
 
     # Estimation
     try:
@@ -221,7 +314,11 @@ def run_analyze(
     item_raw_scores = np.sum(np.where(item_scope[:, None] & mask, x, 0.0), axis=0)
 
     # Summary
-    isum = item_summary(fit["item"], d, scores=item_raw_scores)
+    isum = item_summary(
+        {k: v[item_keep] for k, v in fit["item"].items()},
+        d[item_keep],
+        scores=item_raw_scores[item_keep],
+    )
     psum = person_summary(fit["person"], b, scores=scores, counts=counts, keep=keep)
     psum_ext = person_summary_extreme_incl(
         b,
@@ -239,11 +336,12 @@ def run_analyze(
         "extreme_max": int(np.sum(res_class["extreme_max"])),
     }
     s_rows = summary_rows(isum, psum, counts_info=counts_info, extreme_summary=psum_ext)
+    s_rows.append(("COUNTS", "ITEM DELETED", int(np.sum(~item_keep))))
 
     # Generate table rows
     i_rows = item_table_rows(
-        x,
-        mask,
+        x_all,
+        mask_all,
         key,
         d,
         fit["item"],
@@ -251,6 +349,7 @@ def run_analyze(
         person_measures=b,
         digits=digits,
         item_labels=item_labels,
+        item_keep=item_keep,
     )
     if person_order == "misfit":
         is_extreme = (counts == 0) | (scores == 0) | (scores == counts)
@@ -274,6 +373,8 @@ def run_analyze(
             digits=digits,
             order=order,
             rank_letters=True,
+            deleted=res_class["deleted"],
+            names=names,
         )
     else:
         p_rows = person_table_rows(
@@ -287,6 +388,8 @@ def run_analyze(
             item_measures=d,
             digits=digits,
             rank_letters=False,
+            deleted=res_class["deleted"],
+            names=names,
         )
     o_rows = option_rows(x, mask, rows, key, b, keep=keep, item_measures=d, item_labels=item_labels)
 
@@ -299,6 +402,7 @@ def run_analyze(
             float(d[j]),
         )
         for j in range(len(d))
+        if item_keep[j]
     ]
     wright_measure_rows = measure_map_rows(b, wright_items, digits=digits)
     wright_freq_rows = frequency_map_rows(b, wright_items, digits=digits)
@@ -319,7 +423,7 @@ def run_analyze(
     if fmt in ("csv", "both"):
         write_csv(i_rows, path_item, header_rows=[ITEM_HEADER_ROW_1, ITEM_HEADER_ROW_2])
         files_written.append(os.path.abspath(path_item))
-        write_csv(p_rows, path_person, header_rows=[PERSON_HEADER_ROW_1, PERSON_HEADER_ROW_2])
+        write_csv(p_rows, path_person, header_rows=person_header_rows(show_names=bool(names)))
         files_written.append(os.path.abspath(path_person))
         write_csv(o_rows, path_option, header_rows=[OPTION_HEADER_ROW_1, OPTION_HEADER_ROW_2])
         files_written.append(os.path.abspath(path_option))
@@ -351,6 +455,7 @@ def run_analyze(
             s_rows,
             wright_measure_rows,
             wright_freq_rows,
+            person_headers=person_header_rows(show_names=bool(names)),
         )
         files_written.append(os.path.abspath(path_xlsx))
 
@@ -369,6 +474,7 @@ def run_analyze(
     print(f"NP calibrated (minus extreme) : {np_calibrated}")
     print(f"Lacking count      : {counts_info['lacking']}")
     print(f"Deleted count      : {counts_info['deleted']}")
+    print(f"Deleted items      : {n_del_items}")
     print(f"Extreme count      : {extreme_total} ({counts_info['extreme_min']} min, {counts_info['extreme_max']} max)")
     print(f"Anchors used       : {anchors_count}")
     print(f"Mode               : {mode}")
@@ -381,7 +487,7 @@ def run_analyze(
     print("============================================================")
 
 
-def run_analyze_all(dir_path, out_dir, mode="compat", out_format="both", digits=2, lconv=None):
+def run_analyze_all(dir_path, out_dir, mode="compat", out_format="both", digits=2, lconv=None, roster_path=None, show_names=False):
     failed = False
     con_names = sorted(f for f in os.listdir(dir_path) if f.lower().endswith(".con"))
     for con_name in con_names:
@@ -407,6 +513,10 @@ def run_analyze_all(dir_path, out_dir, mode="compat", out_format="both", digits=
             pdfile_path = os.path.join(dir_path, p) if p and os.path.isfile(os.path.join(dir_path, p)) else os.path.join(dir_path, f"pdfile_{tag}.TXT")
             if not os.path.isfile(pdfile_path):
                 pdfile_path = None
+            i = os.path.basename(str(con.get("IDFILE") or "").replace("\\", "/"))
+            idfile_path = os.path.join(dir_path, i) if i and os.path.isfile(os.path.join(dir_path, i)) else os.path.join(dir_path, f"idfile_{tag}.TXT")
+            if not os.path.isfile(idfile_path):
+                idfile_path = None
 
             with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
                 run_analyze(
@@ -415,10 +525,13 @@ def run_analyze_all(dir_path, out_dir, mode="compat", out_format="both", digits=
                     out_dir=os.path.join(out_dir, tag),
                     anchors_path=anchors_path,
                     pdfile_path=pdfile_path,
+                    idfile_path=idfile_path,
                     mode=mode,
                     out_format=out_format,
                     digits=digits,
                     lconv=lconv,
+                    roster_path=roster_path,
+                    show_names=show_names,
                 )
             text = buf.getvalue()
             ni = np_rep = iters = "?"
@@ -605,6 +718,7 @@ def main(args=None):
     analyze_parser.add_argument("--out", required=True, help="Output directory")
     analyze_parser.add_argument("--anchors", default=None, help="Path to item anchors (IAFILE) file")
     analyze_parser.add_argument("--pdfile", default=None, help="Path to person delete (PDFILE) file")
+    analyze_parser.add_argument("--idfile", default=None, help="Path to item delete (IDFILE) file")
     analyze_parser.add_argument("--mode", choices=["compat", "exact"], default="compat", help="Estimation mode (default: compat)")
     analyze_parser.add_argument("--format", choices=["csv", "xlsx", "both"], default="both", help="Output format (default: both)")
     analyze_parser.add_argument(
@@ -625,6 +739,16 @@ def main(args=None):
         default="misfit",
         help="Person table row order (default: misfit)",
     )
+    analyze_parser.add_argument(
+        "--roster",
+        default=None,
+        help="CSV of id,name labels; names are only written with --show-names",
+    )
+    analyze_parser.add_argument(
+        "--show-names",
+        action="store_true",
+        help="write the roster NAME column (PII)",
+    )
 
     analyze_all_parser = subparsers.add_parser("analyze-all")
     analyze_all_parser.add_argument("--dir", required=True, help="Folder to scan for .CON files")
@@ -642,6 +766,16 @@ def main(args=None):
         type=float,
         default=None,
         help="JMLE stop threshold for --mode compat (default 0.015, calibrated against the six reference runs)",
+    )
+    analyze_all_parser.add_argument(
+        "--roster",
+        default=None,
+        help="CSV of id,name labels; names are only written with --show-names",
+    )
+    analyze_all_parser.add_argument(
+        "--show-names",
+        action="store_true",
+        help="write the roster NAME column (PII)",
     )
 
     suggest_parser = subparsers.add_parser("suggest-deletes")
@@ -664,11 +798,14 @@ def main(args=None):
             out_dir=parsed.out,
             anchors_path=parsed.anchors,
             pdfile_path=parsed.pdfile,
+            idfile_path=parsed.idfile,
             mode=parsed.mode,
             out_format=parsed.format,
             digits=parsed.digits,
             lconv=parsed.lconv,
             person_order=parsed.person_order,
+            roster_path=parsed.roster,
+            show_names=parsed.show_names,
         )
         sys.exit(0)
     elif parsed.command == "suggest-deletes":
@@ -692,6 +829,8 @@ def main(args=None):
             out_format=parsed.format,
             digits=parsed.digits,
             lconv=parsed.lconv,
+            roster_path=parsed.roster,
+            show_names=parsed.show_names,
         )
         sys.exit(1 if failed else 0)
     else:

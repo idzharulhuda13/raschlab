@@ -67,8 +67,8 @@ class TestReport(unittest.TestCase):
 
         self.assertEqual(len(i_rows), 3)
         for r in i_rows:
-            # 13 measured columns + the ITEM label column (empty here: no labels)
-            self.assertEqual(len(r), 14)
+            # 13 measured columns + the ITEM label column (empty here: no labels) + STATUS
+            self.assertEqual(len(r), 15)
             self.assertEqual(r["ITEM"], "")
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -85,7 +85,7 @@ class TestReport(unittest.TestCase):
             self.assertEqual(reader[1], ITEM_HEADER_ROW_2)
 
             for line_idx, row in enumerate(reader):
-                self.assertEqual(len(row), 14, f"Row {line_idx} does not have 14 columns")
+                self.assertEqual(len(row), 15, f"Row {line_idx} does not have 15 columns")
                 for cell in row:
                     self.assertNotIn(",", cell, f"Comma found in cell value '{cell}'")
 
@@ -101,7 +101,7 @@ class TestReport(unittest.TestCase):
                 item_measures=item_measures,
             )
             # P4 and P5 are extreme, so 3 non-extreme persons reported
-            self.assertEqual(len(p_rows), 3)
+            self.assertEqual(len([r for r in p_rows if r["STATUS"] == "kept"]), 3)
             self.assertEqual(p_rows.n_extreme_excluded, 2)
 
             # Option table
@@ -319,7 +319,7 @@ class TestReport(unittest.TestCase):
                 person_diffs = [
                     abs(float(r["EXP."]) - golden_persons[r["PERSON"]])
                     for r in p_rows
-                    if r["PERSON"] in golden_persons
+                    if r["STATUS"] == "kept" and r["PERSON"] in golden_persons
                 ]
                 self.assertLessEqual(max(person_diffs), 0.01 + 1e-5)
 
@@ -339,10 +339,11 @@ class TestReport(unittest.TestCase):
 
         rows = item_table_rows(X, mask, "AB", item_measures, fit_item, item_labels=labels)
 
-        # 14 columns, the label LAST so the 13 measured columns keep their index.
+        # 14 columns + STATUS, the label at index 13 so the 13 measured columns keep their index.
         for r in rows:
-            self.assertEqual(len(r), 14)
-            self.assertEqual(list(r.keys())[-1], "ITEM")
+            self.assertEqual(len(r), 15)
+            self.assertEqual(list(r.keys())[-2], "ITEM")
+            self.assertEqual(list(r.keys())[-1], "STATUS")
         self.assertEqual([r["ITEM"] for r in rows], labels)
         self.assertEqual(rows[0]["ENTRY"], 1)
         self.assertEqual(rows[1]["ENTRY"], 2)
@@ -353,8 +354,9 @@ class TestReport(unittest.TestCase):
             with open(csv_path, "r", encoding="utf-8") as f:
                 reader = list(csv.reader(f))
 
-        self.assertEqual(reader[1][-1], "ITEM")
-        self.assertEqual([r[-1] for r in reader[2:]], labels)
+        self.assertEqual(reader[1][-1], "STATUS")
+        self.assertEqual([r[13] for r in reader[2:]], labels)
+        self.assertTrue(all(r[14] == "kept" for r in reader[2:]))
         # The measured columns keep their positions: MEASURE is still index 3.
         self.assertEqual(reader[2][3], "0.10")
 

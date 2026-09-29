@@ -41,6 +41,7 @@ The reference baselines themselves are not distributed because they derive from 
 | Fixed-width response reader + scoring (`CODES` alphabet, `MISSCORE`, `X`/blank = missing, all-missing run refused) | done, verified (item COUNT matches across all items; 0/1 input regression `tests/test_scoring_codes.py`) |
 | Estimation: PROX start + JMLE | done -- two modes, see below |
 | Person accounting (lacking / deleted / extreme) | done -- `REPORTED:` matches Winsteps exactly in all six runs (about two thousand respondents per run) |
+| Delete audit: person STATUS/CANDIDATE rows, `--roster`/`--show-names`, IDFILE item deletes | person side done; item-side IDFILE behaviour **NOT** verified against the reference (no vendor run carries `IDFILE=`), see docs/parity.md section 9 |
 | Item anchors (`IAFILE`) and person delete list (`PDFILE`) | done, verified |
 | Fit statistics (Infit/Outfit MNSQ + ZSTD, model & real S.E.) | done, verified |
 | Extreme scores (`EXTRSCORE=0.3`, person + item extremes) | done, verified against the reference's extreme-included person block in all six runs |
@@ -143,6 +144,8 @@ Measured against the reference outputs across hundreds of items over six real tr
 - Person level (TABLE 6.1 rows): measure 0.03, MNSQ 0.04, `CORR.` 0.02; `OBS%` up to 8.4 pp on single
   persons whose response pattern is nearly extreme (one flipped response out of twelve) and outfit MNSQ up to
   ~78 on a handful of such persons, where z² = (x−p)²/(p(1−p)) explodes as p → 1.
+- The tables now carry a trailing `STATUS` column and the person table appends its excluded rows; the reference
+  tool prints neither, so the parity claims above are scoped to the kept block.
 
 ### Known limitations
 
@@ -265,28 +268,39 @@ Options:
   old Windows location, so it is never required.
 - `--anchors PATH` -- item anchor file (`IAFILE=`), one `item_number value` per line.
 - `--pdfile PATH` -- person delete file (`PDFILE=`), one 1-based person entry number per line.
+- `--idfile PATH` -- item delete file (`IDFILE=`), one 1-based item number per line; deleted items keep their
+  row in the item table with `STATUS=deleted` and are counted in the console summary.
+- `--roster PATH` -- optional person roster (ID -> name lookup) used to resolve the person `NAME` column.
+- `--show-names` -- write the person names. Names are written **only** with `--show-names`; the default output
+  carries the person ID alone.
 - `--mode compat|exact` -- estimation path (`compat` default).
 - `--lconv FLOAT` -- JMLE stop threshold for `--mode compat` (default 0.015, calibrated against the six reference runs).
 - `--format csv|xlsx|both` -- output format (`both` default).
 - `--digits N` -- decimals for MEASURE/S.E. in the item and person tables (default 2).
 - `--person-order entry|misfit` -- person table order (`misfit` default: outfit MNSQ descending, the Winsteps
-  TABLE 6.1 order; `entry` keeps the data-file order). In `misfit` mode the person table gets one extra last
-  column `RANK`: `A`..`Z` on the first 26 rows and `a`..`z` on the last 26 (the most misfitting and the most
-  overfitting persons, which is where Winsteps puts its rank letters).
+  TABLE 6.1 order; `entry` keeps the data-file order). The person table always carries the `RANK` column, empty
+  with `--person-order entry`; in `misfit` mode it holds `A`..`Z` on the first 26 kept rows and `a`..`z` on the
+  last 26 (the most misfitting and the most overfitting persons, which is where Winsteps puts its rank letters).
+  `STATUS` is the last column in both orders.
 - `--out DIR` -- output directory. *(required)*
 
 Output files:
-- `item_table_15.1.csv` -- item measures, S.E., fit, PTMEA CORR/EXP, exact match, and the item `ITEM` label
-  (from `ILABEL`) in the last column.
-- `person_table.csv` -- person measures and fit (extreme persons excluded, and counted in the summary);
-  misfit order with the `RANK` letters unless `--person-order entry`.
+- `item_table_15.1.csv` -- item measures, S.E., fit, PTMEA CORR/EXP, exact match, the item `ITEM` label
+  (from `ILABEL`), and a trailing `STATUS` column (`kept` / `deleted`).
+- `person_table.csv` -- the kept block first (person measures and fit, extreme persons excluded, and counted in
+  the summary; misfit order with the `RANK` letters unless `--person-order entry`), then one appended row per
+  excluded person in ascending `ENTRY` order, with blank measure/fit cells and a `STATUS` of `deleted`,
+  `lacking`, `extreme_min` or `extreme_max`. `CANDIDATE` / `REASON` mark the persons the `infit >= 1.5` rule
+  catches on the current calibration, and the optional `NAME` column is present only with `--show-names`.
 - `option_table_15.3.csv` -- option counts, %, ability mean/P.SD/S.E. MEAN, fit, PTMA, plus the `MISSING ***` row.
-- `summary_table.csv` -- item and person summary statistics.
-- `analysis_report.xlsx` -- all four as sheets `15.1`, `person`, `15.3`, `summary`.
+- `summary_table.csv` -- item and person summary statistics, ending with a `COUNTS`, `ITEM DELETED` row.
+- `analysis_report.xlsx` -- all four as sheets `15.1`, `person`, `15.3`, `summary`; the `person` and `15.1`
+  sheets carry an autofilter anchored on the column-name row (`A2`).
 
 The console summary prints the account of persons: input, `NP reported (after delete)` (equals Winsteps's
-`REPORTED:`), `NP calibrated (minus extreme)`, lacking / deleted / extreme counts, anchors used, iterations, max
-change and wall time.
+`REPORTED:`), `NP calibrated (minus extreme)`, lacking / deleted / extreme counts, a `Deleted items` line for the
+item-side `IDFILE` deletes, and `roster: N/N labels matched` when `--roster` is given; then anchors used,
+iterations, max change and wall time.
 
 ### 2. `analyze-all` -- one folder, every subtest
 
@@ -298,8 +312,10 @@ Scans `--dir` for `*.CON` (case-insensitive, sorted by name), derives the run ta
 name (stem, lowercased, leading `cfile_` stripped -- so `cfile_penalaran_rev.CON` becomes `penalaran_rev`),
 resolves the data / anchors / person-delete files from the `.CON` entries by basename inside `--dir`
 (falling back to `<tag>_data.prn`, `iafile_<tag>.TXT`, `pdfile_<tag>.TXT`, then for a revisi run to the
-`_rev`-stripped data copy, e.g. `pemecahan_data.prn` for `pemecahan_rev`), and writes each run into
-`<out>/<tag>`. `--mode`, `--lconv`, `--format` and `--digits` behave exactly as in `analyze`.
+`_rev`-stripped data copy, e.g. `pemecahan_data.prn` for `pemecahan_rev`), resolves the item-delete file per
+run (the `IDFILE=` entry in the control file, falling back to `idfile_<tag>.TXT`), and writes each run into
+`<out>/<tag>`. `--mode`, `--lconv`, `--format` and `--digits` behave exactly as in `analyze`; `--roster` and
+`--show-names` are forwarded to every run.
 
 It prints one line per run (`tag, items, persons_reported, iterations, elapsed`), keeps going when a single
 run fails, and exits 1 if any run failed, 0 when all succeeded:

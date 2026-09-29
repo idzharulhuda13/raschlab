@@ -33,6 +33,9 @@ Status legend:
 | Extreme scores | excluded from calibration, estimated separately | same | identical | `Extreme count`, `LACKING`, `DELETED` blocks (see §4 for the measure value) |
 | Person table order | misfit order (outfit MNSQ descending) + rank letters | same (`--person-order misfit\|entry`) | identical | `TABLE 6.1` of each run vs `person_table.csv` |
 
+The person table's `STATUS` column and the excluded-person rows it appends are additions beyond the reference,
+which hides excluded persons entirely; every parity claim above is scoped to the kept block.
+
 ## 3. Estimation -- the one place we knowingly differ
 
 | Item | Reference | raschlab | Status | Evidence |
@@ -147,6 +150,7 @@ a standing invitation.
 | `DISPLACE`, `G`, `PTBSE`, `ESTIM DISCR`, `ASYMPTOTE LOWER/UPPER`, `P-VALUE`, `RMSR`, `WEIGH` | columns of Table 13.1 / 6.1 | diagnostic columns the target sheets do not carry; `DISPLACE` is already used internally as the anchor check in `compare_unanchored.py` | a concrete requirement for a specific column, with the sheet that would consume it -- not before |
 | Table 44 global statistics | separate table | absent from all six vendor files, and the item summary even defers to it (`Global statistics: please see Table 44.`) -- there is no reference value to verify against | one reference run whose output includes Table 44 |
 | Wright map, DIF, PCA of residuals, MFRM / PCM / RSM, logit-to-raw-score conversion tables | various | out of scope for the dichotomous workflow (README lists them); the Sulingjar 2024 corpus confirms the rating-scale boundary is real but sits outside what raschlab is for | a decision to widen the tool's scope beyond dichotomous Rasch -- a project, not a gap |
+| Item deletion (`IDFILE=`) | no vendor run in hand carries `IDFILE=` | item-delete semantics have no golden reference in this project's files; the behaviour is documented and pinned by tests only | a vendor run whose control file carries `IDFILE=` together with its printed tables |
 
 
 ## 10. Re-verifying this document
