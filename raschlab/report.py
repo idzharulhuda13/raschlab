@@ -127,15 +127,16 @@ def fill_sheet(ws, header_rows, data_rows, fmt_for, freeze_panes="A3"):
 
 # Two-row headers matching Winsteps / team sheets
 #
-# The item table carries the same columns as the reference tool's TABLE 15.1 and
-# ends with the item LABEL column ("ITEM"), so a reader of the CSV/XLSX can show
-# the item code (e.g. 01tbskda26a01) rather than only the ENTRY number.  It is
-# the last column, so every pre-existing column keeps its name, order and index.
+# The item table carries the reference tool's TABLE 15.1 columns, then ITEM
+# (label), then SUBSUBTES (sub-subtes name, added 2026-09-30), then STATUS.
+# STATUS stays the FINAL column so grep for a comma followed by deleted keeps
+# working; ITEM keeps index 13 and SUBSUBTES takes index 14.  The 13 measured
+# columns keep their names, order and index.
 ITEM_HEADER_ROW_1 = [
-    "ENTRY", "TOTAL", "TOTAL", "JMLE", "MODEL", "INFIT", "", "OUTFIT", "", "PTMEASUR-AL", "", "EXACT", "MATCH", "", ""
+    "ENTRY", "TOTAL", "TOTAL", "JMLE", "MODEL", "INFIT", "", "OUTFIT", "", "PTMEASUR-AL", "", "EXACT", "MATCH", "", "", ""
 ]
 ITEM_HEADER_ROW_2 = [
-    "NUMBER", "SCORE", "COUNT", "MEASURE", "S.E.", "MNSQ", "ZSTD", "MNSQ", "ZSTD", "CORR.", "EXP.", "OBS%", "EXP%", "ITEM", "STATUS"
+    "NUMBER", "SCORE", "COUNT", "MEASURE", "S.E.", "MNSQ", "ZSTD", "MNSQ", "ZSTD", "CORR.", "EXP.", "OBS%", "EXP%", "ITEM", "SUBSUBTES", "STATUS"
 ]
 
 PERSON_HEADER_ROW_1 = [
@@ -230,6 +231,36 @@ def _fmt(val, decimals):
         return str(val) if val is not None else ""
 
 
+# TBS 2025 sub-subtes codes -> display names (the value is the sub-subtes NAME,
+# not the code).  No code is a substring of another, so a plain containment test
+# is unambiguous.
+SUBSUBTES_NAMES = {
+    "tbskd": "Deretan Bilangan",
+    "tbska": "Aritmatika dan Aljabar",
+    "tbskk": "Kecukupan Data",
+    "tbspl": "Logis",
+    "tbspa": "Analitis",
+    "tbspsa": "Pemecahan Masalah",
+    "tbsvga": "Analogi",
+}
+
+
+def subsubtes_name(label):
+    """Sub-subtes display name derived from an item label string.
+
+    Pure function of the label: case-insensitive search for a known sub-subtes
+    code (for example 06tbspl25a06 -> Logis).  Returns an empty string for None,
+    an empty label, or any label shape that carries no known code.  Never raises.
+    """
+    if not label:
+        return ""
+    text = str(label).lower()
+    for code, name in SUBSUBTES_NAMES.items():
+        if code in text:
+            return name
+    return ""
+
+
 def item_table_rows(
     X,
     mask,
@@ -276,8 +307,8 @@ def item_table_rows(
     Returns
     -------
     list of TableRow
-        List of dicts with 14 keys corresponding to Table 15.1 plus the ITEM
-        label column.
+        List of dicts with 16 keys: the 13 measured Table 15.1 columns plus
+        ITEM, SUBSUBTES and STATUS (STATUS last).
     """
     X = np.asarray(X, dtype=float)
     mask = np.asarray(mask, dtype=bool)
@@ -400,6 +431,10 @@ def item_table_rows(
         # column.  Added LAST so the 13 measured columns keep their positions;
         # it is empty (not the entry number) when no label file was resolved.
         row["ITEM"] = str(item_labels[j]) if item_labels is not None and j < len(item_labels) else ""
+        # SUBSUBTES (2026-09-30): inserted immediately BEFORE STATUS so STATUS
+        # stays the final column.  Derived from the label alone; empty when the
+        # label is absent or carries no known sub-subtes code.
+        row["SUBSUBTES"] = subsubtes_name(row["ITEM"])
         row["STATUS"] = "kept" if kept else "deleted"
 
         rows.append(row)
@@ -515,8 +550,9 @@ def person_table_rows(
     for p_idx, i in enumerate(valid_indices):
         infit_list[i] = round(float(fit_person["infit_mnsq"][p_idx]), 2)
         outfit_list[i] = round(float(fit_person["outfit_mnsq"][p_idx]), 2)
-    cand_list = suggest_by_fit(labels, scores, counts, infit_list, outfit_list, min_infit=1.5)
-    # ponytail: min_infit=1.5 is hardcoded; a configurable threshold would need a new param
+    cand_list = suggest_by_fit(labels, scores, counts, infit_list, outfit_list, min_infit=MISFIT_INFIT_MNSQ)
+    # The threshold lives in MISFIT_INFIT_MNSQ so the delete suggestion and the
+    # per-sub-subtes summary can never drift apart.
     cand = {c["entry"]: c["reason"] for c in cand_list}
 
     # Vectorised per-person statistics: CORR., OBS% and EXP% are computed for every
@@ -950,6 +986,84 @@ def summary_rows(item_summary, person_summary, counts_info=None, extreme_summary
     return rows
 
 
+SUBSUBTES_SUMMARY_COLUMNS = [
+    "SUBSUBTES", "ITEMS", "ANCHOR_ITEMS", "NEW_ITEMS",
+    "MEAN_MEASURE", "S.SD_MEASURE", "MEAN_INFIT", "MAX_INFIT", "MISFIT_ITEMS",
+]
+
+# House misfit threshold: the same number suggest-deletes uses by default.
+MISFIT_INFIT_MNSQ = 1.5
+
+
+def _label_year(label):
+    """Year token (25 = anchor / 26 = new / empty) of a TBS item label.
+
+    The token is looked for AFTER the sub-subtes code, so a paket number in front
+    of the code can never be mistaken for it.
+    """
+    text = str(label or "").lower()
+    for code in SUBSUBTES_NAMES:
+        pos = text.find(code)
+        if pos >= 0:
+            rest = text[pos + len(code):]
+            hits = [(i, y) for i, y in ((rest.find("25"), "25"), (rest.find("26"), "26")) if i >= 0]
+            return min(hits)[1] if hits else ""
+    return ""
+
+
+def subsubtes_summary_rows(item_rows):
+    """One row per sub-subtes present in item_rows, ordered by first appearance.
+
+    Columns follow SUBSUBTES_SUMMARY_COLUMNS.  A row whose SUBSUBTES is empty
+    forms no group, so an all-unlabelled run yields an empty list (header-only
+    file).  ANCHOR_ITEMS / NEW_ITEMS count labels carrying the year token 25 / 26;
+    a label with neither counts in neither.  MEAN_MEASURE and MEAN_INFIT are
+    rounded to 2 decimals, S.SD_MEASURE is the sample SD (ddof=1) and is 0.0 for a
+    single item.  Blank MEASURE / INFIT cells (deleted items) are excluded from the
+    statistics but still counted in ITEMS.  MISFIT_ITEMS counts INFIT MNSQ at or
+    above MISFIT_INFIT_MNSQ.
+    """
+    groups = {}
+    for row in item_rows:
+        name = row.get("SUBSUBTES") or ""
+        if name:
+            groups.setdefault(name, []).append(row)
+    out = []
+    for name, rows in groups.items():
+        anchor = new = 0
+        measures, infits = [], []
+        for r in rows:
+            year = _label_year(r.get("ITEM", ""))
+            if year == "25":
+                anchor += 1
+            elif year == "26":
+                new += 1
+            m = r.get("MEASURE", "")
+            if m not in ("", None):
+                measures.append(float(m))
+            v = r.get("INFIT MNSQ", "")
+            if v not in ("", None):
+                infits.append(float(v))
+        if len(measures) > 1:
+            ssd = round(float(np.std(np.asarray(measures), ddof=1)), 2)
+        elif len(measures) == 1:
+            ssd = 0.0
+        else:
+            ssd = ""
+        out.append([
+            name,
+            len(rows),
+            anchor,
+            new,
+            round(float(np.mean(measures)), 2) if measures else "",
+            ssd,
+            round(float(np.mean(infits)), 2) if infits else "",
+            round(float(np.max(infits)), 2) if infits else "",
+            sum(1 for v in infits if v >= MISFIT_INFIT_MNSQ),
+        ])
+    return out
+
+
 def write_csv(rows, path, header_rows=None):
     """Write rows to a CSV file in dict key order.
 
@@ -986,12 +1100,14 @@ def write_workbook(
     wright_measure_rows=None,
     wright_frequency_rows=None,
     person_headers=None,
+    subsubtes_rows=None,
 ):
     """Write XLSX workbook containing sheets: '15.1', 'person', '15.3', 'summary'.
 
     When the Wright map rows are supplied, two more sheets are appended after
     them: 'wright_measure' and 'wright_frequency'. Passing None for either (the
     default) skips that sheet, so the four-sheet workbook is unchanged.
+    subsubtes_rows=None skips the 'subsubtes' sheet the same way.
 
     Each sheet starts with its own two-row header where applicable. Header rows
     are frozen, numeric columns are written as real numbers carrying an explicit
@@ -1073,6 +1189,19 @@ def write_workbook(
             [FREQ_HEADER_ROW_1, FREQ_HEADER_ROW_2],
             [[r.get(key, "") for key in FREQ_HEADER_ROW_1] for r in wright_frequency_rows],
             table_fmt,
+        )
+
+    # Sheet subsubtes (one row per sub-subtes; header-only when there are none).
+    # Appended LAST so the pre-existing sheet order is untouched; None skips it,
+    # the same convention as the wright sheets.
+    if subsubtes_rows is not None:
+        ws_ss = wb.create_sheet(title="subsubtes")
+        fill_sheet(
+            ws_ss,
+            [SUBSUBTES_SUMMARY_COLUMNS],
+            [list(r) for r in subsubtes_rows],
+            summary_fmt,
+            freeze_panes="A2",
         )
 
     wb.remove(default_sheet)

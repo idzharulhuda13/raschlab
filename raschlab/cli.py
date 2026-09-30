@@ -23,6 +23,8 @@ from raschlab.report import (
     person_header_rows,
     option_rows,
     summary_rows,
+    subsubtes_summary_rows,
+    SUBSUBTES_SUMMARY_COLUMNS,
     write_csv,
     write_workbook,
     ITEM_HEADER_ROW_1,
@@ -393,6 +395,10 @@ def run_analyze(
         )
     o_rows = option_rows(x, mask, rows, key, b, keep=keep, item_measures=d, item_labels=item_labels)
 
+    # Per-sub-subtes summary rows: one row per sub-subtes present, in item order.
+    # Written on every run (header-only when no label maps to a sub-subtes).
+    ss_rows = subsubtes_summary_rows(i_rows)
+
     # Wright map rows: the person-item measure map and the person frequency map,
     # built from the calibrated person measures (b) and item measures (d).
     wright_items = [
@@ -419,6 +425,7 @@ def run_analyze(
     path_wright_measure = os.path.join(out_dir, "wright_map_measure.csv")
     path_wright_freq = os.path.join(out_dir, "wright_map_frequency.csv")
     path_xlsx = os.path.join(out_dir, "analysis_report.xlsx")
+    path_subsubtes = os.path.join(out_dir, "subsubtes_summary.csv")
 
     if fmt in ("csv", "both"):
         write_csv(i_rows, path_item, header_rows=[ITEM_HEADER_ROW_1, ITEM_HEADER_ROW_2])
@@ -429,6 +436,8 @@ def run_analyze(
         files_written.append(os.path.abspath(path_option))
         write_csv(s_rows, path_summary, header_rows=[["SECTION", "STATISTIC", "VALUE"], ["", "", ""]])
         files_written.append(os.path.abspath(path_summary))
+        write_csv(ss_rows, path_subsubtes, header_rows=[SUBSUBTES_SUMMARY_COLUMNS])
+        files_written.append(os.path.abspath(path_subsubtes))
         # The measure rows carry ITEM_HIST last, so emit their values in the
         # MEASURE_HEADER_ROW_1 column order to keep the CSV aligned with it.
         write_csv(
@@ -456,6 +465,7 @@ def run_analyze(
             wright_measure_rows,
             wright_freq_rows,
             person_headers=person_header_rows(show_names=bool(names)),
+            subsubtes_rows=ss_rows,
         )
         files_written.append(os.path.abspath(path_xlsx))
 

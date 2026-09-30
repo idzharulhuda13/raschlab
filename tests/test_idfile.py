@@ -76,7 +76,9 @@ def test_idfile_flag_resolves(tmp_path):
     out, err, code = _run(tmp_path, idfile_path=DEMO_IDFILE)
     assert code == 0, err
     rows = _item_rows(tmp_path)
-    statuses = [r[14].strip() for r in rows]
+    # 2026-09-30: SUBSUBTES occupies index 14 in the item table, so STATUS moved
+    # from index 14 to 15.
+    statuses = [r[15].strip() for r in rows]
     assert statuses.count("deleted") == 1
     assert statuses.count("kept") == 5
 
@@ -108,7 +110,7 @@ def test_idfile_con_basename_resolution(tmp_path):
     out, err, code = _run(out_dir, idfile_path=None, con_path=str(con_path))
     assert code == 0, err
     rows = _item_rows(out_dir)
-    assert any(r[14].strip() == "deleted" for r in rows)
+    assert any(r[15].strip() == "deleted" for r in rows)
 
 
 # ---------------------------------------------------------------------------
@@ -201,8 +203,8 @@ def test_exactly_one_deleted_row_last_blank_measure(tmp_path):
     _run(tmp_path, idfile_path=DEMO_IDFILE)
     rows = _item_rows(tmp_path)
 
-    deleted = [r for r in rows if r[14].strip() == "deleted"]
-    kept = [r for r in rows if r[14].strip() == "kept"]
+    deleted = [r for r in rows if r[15].strip() == "deleted"]
+    kept = [r for r in rows if r[15].strip() == "kept"]
     assert len(deleted) == 1
     assert len(kept) == 5
 

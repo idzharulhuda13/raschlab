@@ -67,9 +67,11 @@ class TestReport(unittest.TestCase):
 
         self.assertEqual(len(i_rows), 3)
         for r in i_rows:
-            # 13 measured columns + the ITEM label column (empty here: no labels) + STATUS
-            self.assertEqual(len(r), 15)
+            # 13 measured + ITEM + SUBSUBTES + STATUS (2026-09-30: SUBSUBTES was
+            # inserted before STATUS, so item rows went from 15 to 16 fields).
+            self.assertEqual(len(r), 16)
             self.assertEqual(r["ITEM"], "")
+            self.assertEqual(r["SUBSUBTES"], "")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             csv_path = os.path.join(tmpdir, "item_table.csv")
@@ -85,7 +87,7 @@ class TestReport(unittest.TestCase):
             self.assertEqual(reader[1], ITEM_HEADER_ROW_2)
 
             for line_idx, row in enumerate(reader):
-                self.assertEqual(len(row), 15, f"Row {line_idx} does not have 15 columns")
+                self.assertEqual(len(row), 16, f"Row {line_idx} does not have 16 columns")
                 for cell in row:
                     self.assertNotIn(",", cell, f"Comma found in cell value '{cell}'")
 
@@ -339,10 +341,12 @@ class TestReport(unittest.TestCase):
 
         rows = item_table_rows(X, mask, "AB", item_measures, fit_item, item_labels=labels)
 
-        # 14 columns + STATUS, the label at index 13 so the 13 measured columns keep their index.
+        # 16 columns (2026-09-30): 13 measured + ITEM (index 13) + SUBSUBTES
+        # (index 14) + STATUS (last).  The measured columns keep their index.
         for r in rows:
-            self.assertEqual(len(r), 15)
-            self.assertEqual(list(r.keys())[-2], "ITEM")
+            self.assertEqual(len(r), 16)
+            self.assertEqual(list(r.keys())[-3], "ITEM")
+            self.assertEqual(list(r.keys())[-2], "SUBSUBTES")
             self.assertEqual(list(r.keys())[-1], "STATUS")
         self.assertEqual([r["ITEM"] for r in rows], labels)
         self.assertEqual(rows[0]["ENTRY"], 1)
@@ -355,8 +359,10 @@ class TestReport(unittest.TestCase):
                 reader = list(csv.reader(f))
 
         self.assertEqual(reader[1][-1], "STATUS")
+        self.assertEqual(reader[1][-2], "SUBSUBTES")
         self.assertEqual([r[13] for r in reader[2:]], labels)
-        self.assertTrue(all(r[14] == "kept" for r in reader[2:]))
+        # 2026-09-30: index 14 is now SUBSUBTES, so STATUS is index 15.
+        self.assertTrue(all(r[15] == "kept" for r in reader[2:]))
         # The measured columns keep their positions: MEASURE is still index 3.
         self.assertEqual(reader[2][3], "0.10")
 
