@@ -261,6 +261,29 @@ def subsubtes_name(label):
     return ""
 
 
+# Sub-subtes NAME -> Subtes (aggregate) name.  The keys are the VALUES of
+# SUBSUBTES_NAMES above, so the vocabulary keeps one authority.
+SUBTES_OF_SUBSUBTES = {
+    "Aritmatika dan Aljabar": "Kuantitatif",
+    "Deretan Bilangan": "Kuantitatif",
+    "Kecukupan Data": "Kuantitatif",
+    "Logis": "Penalaran",
+    "Analitis": "Penalaran",
+    "Pemecahan Masalah": "Pemecahan Masalah",
+    "Analogi": "Verbal",
+}
+
+
+def subtes_name(label):
+    """Subtes (aggregate) display name for an item label.
+
+    Pure function of the label: it resolves the sub-subtes first and then maps
+    it to its Subtes.  Returns an empty string for None, an empty label, or any
+    label shape that carries no known sub-subtes code.  Never raises.
+    """
+    return SUBTES_OF_SUBSUBTES.get(subsubtes_name(label), "")
+
+
 def item_table_rows(
     X,
     mask,
@@ -991,6 +1014,18 @@ SUBSUBTES_SUMMARY_COLUMNS = [
     "MEAN_MEASURE", "S.SD_MEASURE", "MEAN_INFIT", "MAX_INFIT", "MISFIT_ITEMS",
 ]
 
+# Tabulasi tables: item difficulty x discrimination per Subtes/sub-subtes.
+# The summary table carries one row per (Subtes, Sub-subtes, kesukaran); the
+# item table carries one row per item of the run.
+TABULASI_SUMMARY_COLUMNS = [
+    "SUBTES", "SUBSUBTES", "KESUKARAN", "TINGGI", "NOMOR_TINGGI",
+    "RENDAH", "NOMOR_RENDAH", "JUMLAH",
+]
+TABULASI_ITEM_COLUMNS = [
+    "SUBTES", "SUBSUBTES", "ENTRY", "ITEM", "KESUKARAN", "DAYA_BEDA",
+    "DATA_PCT", "PTMA_CORR",
+]
+
 # House misfit threshold: the same number suggest-deletes uses by default.
 MISFIT_INFIT_MNSQ = 1.5
 
@@ -1101,13 +1136,15 @@ def write_workbook(
     wright_frequency_rows=None,
     person_headers=None,
     subsubtes_rows=None,
+    tabulasi_rows=None,
 ):
     """Write XLSX workbook containing sheets: '15.1', 'person', '15.3', 'summary'.
 
     When the Wright map rows are supplied, two more sheets are appended after
     them: 'wright_measure' and 'wright_frequency'. Passing None for either (the
     default) skips that sheet, so the four-sheet workbook is unchanged.
-    subsubtes_rows=None skips the 'subsubtes' sheet the same way.
+    subsubtes_rows=None skips the 'subsubtes' sheet the same way, and
+    tabulasi_rows=None skips the 'tabulasi' sheet the same way.
 
     Each sheet starts with its own two-row header where applicable. Header rows
     are frozen, numeric columns are written as real numbers carrying an explicit
@@ -1200,6 +1237,20 @@ def write_workbook(
             ws_ss,
             [SUBSUBTES_SUMMARY_COLUMNS],
             [list(r) for r in subsubtes_rows],
+            summary_fmt,
+            freeze_panes="A2",
+        )
+
+    # Sheet tabulasi (one row per Subtes/sub-subtes/kesukaran; header-only when
+    # there are none).  Appended LAST so the pre-existing sheet order is
+    # untouched; the same None convention as the sheets above.  These rows are
+    # dicts, so values are selected by column name.
+    if tabulasi_rows is not None:
+        ws_tab = wb.create_sheet(title="tabulasi")
+        fill_sheet(
+            ws_tab,
+            [TABULASI_SUMMARY_COLUMNS],
+            [[r.get(c, "") for c in TABULASI_SUMMARY_COLUMNS] for r in tabulasi_rows],
             summary_fmt,
             freeze_panes="A2",
         )

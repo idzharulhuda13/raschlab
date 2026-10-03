@@ -16,6 +16,7 @@ from raschlab.estimate import prox, jmle
 from raschlab.compat import estimate_compat
 from raschlab.fit import fit_stats
 from raschlab.summary import item_summary, person_summary, person_summary_extreme_incl
+from raschlab.tabulasi import tabulasi_item_rows, tabulasi_summary_rows
 from raschlab.suggest import suggest_by_fit
 from raschlab.report import (
     item_table_rows,
@@ -25,6 +26,8 @@ from raschlab.report import (
     summary_rows,
     subsubtes_summary_rows,
     SUBSUBTES_SUMMARY_COLUMNS,
+    TABULASI_ITEM_COLUMNS,
+    TABULASI_SUMMARY_COLUMNS,
     write_csv,
     write_workbook,
     ITEM_HEADER_ROW_1,
@@ -399,6 +402,12 @@ def run_analyze(
     # Written on every run (header-only when no label maps to a sub-subtes).
     ss_rows = subsubtes_summary_rows(i_rows)
 
+    # Tabulasi rows: pure calculation over this run's own item and option rows.
+    # No deletion file is read, no keep/drop status is consulted, no item is
+    # filtered out here.
+    tab_item_rows = tabulasi_item_rows(i_rows, o_rows)
+    tab_sum_rows = tabulasi_summary_rows(i_rows, o_rows)
+
     # Wright map rows: the person-item measure map and the person frequency map,
     # built from the calibrated person measures (b) and item measures (d).
     wright_items = [
@@ -426,6 +435,8 @@ def run_analyze(
     path_wright_freq = os.path.join(out_dir, "wright_map_frequency.csv")
     path_xlsx = os.path.join(out_dir, "analysis_report.xlsx")
     path_subsubtes = os.path.join(out_dir, "subsubtes_summary.csv")
+    path_tab_summary = os.path.join(out_dir, "tabulasi_summary.csv")
+    path_tab_item = os.path.join(out_dir, "tabulasi_item.csv")
 
     if fmt in ("csv", "both"):
         write_csv(i_rows, path_item, header_rows=[ITEM_HEADER_ROW_1, ITEM_HEADER_ROW_2])
@@ -438,6 +449,10 @@ def run_analyze(
         files_written.append(os.path.abspath(path_summary))
         write_csv(ss_rows, path_subsubtes, header_rows=[SUBSUBTES_SUMMARY_COLUMNS])
         files_written.append(os.path.abspath(path_subsubtes))
+        write_csv(tab_sum_rows, path_tab_summary, header_rows=[TABULASI_SUMMARY_COLUMNS])
+        files_written.append(os.path.abspath(path_tab_summary))
+        write_csv(tab_item_rows, path_tab_item, header_rows=[TABULASI_ITEM_COLUMNS])
+        files_written.append(os.path.abspath(path_tab_item))
         # The measure rows carry ITEM_HIST last, so emit their values in the
         # MEASURE_HEADER_ROW_1 column order to keep the CSV aligned with it.
         write_csv(
@@ -466,6 +481,7 @@ def run_analyze(
             wright_freq_rows,
             person_headers=person_header_rows(show_names=bool(names)),
             subsubtes_rows=ss_rows,
+            tabulasi_rows=tab_sum_rows,
         )
         files_written.append(os.path.abspath(path_xlsx))
 

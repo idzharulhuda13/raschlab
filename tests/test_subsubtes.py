@@ -102,7 +102,8 @@ def test_end_to_end_writes_summary_csv_and_sheet(tmp_path):
     import openpyxl
     wb = openpyxl.load_workbook(out / "analysis_report.xlsx")
     assert "subsubtes" in wb.sheetnames
-    assert wb.sheetnames[-1] == "subsubtes"
+    assert "tabulasi" in wb.sheetnames
+    assert wb.sheetnames[-1] == "tabulasi"
 
     with open(out / "item_table_15.1.csv", newline="", encoding="utf-8") as f:
         item = list(csv.reader(f))
