@@ -251,6 +251,8 @@ class TestCLI(unittest.TestCase):
         with open(item_csv, "r", encoding="utf-8") as f:
             item_rows = list(csv.reader(f))
         self.assertGreater(len(item_rows), 2)
+        item_col = item_rows[1].index("ITEM")
+        self.assertEqual([r[item_col] for r in item_rows[2:]], ["I01", "I02", "I03"])
         for r in item_rows[2:]:
             # Non-empty item entry/label column
             self.assertTrue(len(r[0].strip()) > 0)

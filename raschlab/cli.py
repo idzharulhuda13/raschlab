@@ -160,6 +160,11 @@ def run_analyze(
         except Exception:
             pass
 
+    if item_labels is None:
+        # No label source at all: fall back to the same I<nn> labels the web
+        # ingest generates, so the CLI ITEM column matches the platform output.
+        item_labels = [f"I{j + 1:02d}" for j in range(ni)]
+
     n_persons = len(labels)
 
     # Optional roster CSV (id,name).  The id is matched as TEXT so leading zeros
