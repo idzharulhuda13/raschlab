@@ -362,7 +362,7 @@ RASCHLAB_DATA_DIR=/tmp/raschlab-reference .venv/bin/python -m pytest tests -q
 ```
 
 The harness compares both modes against the reference Winsteps item tables of all six runs and exits non-zero when a
-run exceeds the 0.05 logit gate.
+run exceeds the 0.05 logit gate. The engine suite needs `/tmp/raschlab_demo` for the reference-fixture tests, and they skip when it is missing.
 
 ---
 

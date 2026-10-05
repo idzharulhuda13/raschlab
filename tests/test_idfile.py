@@ -1,6 +1,7 @@
 """Tests for the item-delete (IDFILE) contract.
 
 Fixture: /tmp/raschlab_demo/{demo.CON, demo_data.prn, idfile.TXT}
+The tests skip when that directory is absent because licensed reference tool demo data is not committed to the repository.
 idfile.TXT contains a single entry: 6  (delete item 6 out of NI=6)
 """
 
@@ -20,6 +21,16 @@ DEMO_DIR = "/tmp/raschlab_demo"
 DEMO_CON = os.path.join(DEMO_DIR, "demo.CON")
 DEMO_DATA = os.path.join(DEMO_DIR, "demo_data.prn")
 DEMO_IDFILE = os.path.join(DEMO_DIR, "idfile.TXT")
+
+pytestmark = pytest.mark.skipif(
+    not os.path.isdir(DEMO_DIR),
+    reason=(
+        f"external reference fixture missing: {DEMO_DIR} "
+        "(needs demo.CON, demo_data.prn, idfile.TXT). "
+        "These tests audit the reference tool's item-delete contract and are skipped, not passed, "
+        "until those files are placed there."
+    ),
+)
 
 
 # ---------------------------------------------------------------------------

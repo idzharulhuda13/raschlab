@@ -1,6 +1,7 @@
 """Tests for the person-delete audit and roster contract.
 
 Fixture: /tmp/raschlab_demo/{demo.CON, demo_data.prn, pdfile.TXT, roster.csv}
+The tests skip when that directory is absent because licensed reference tool demo data is not committed to the repository.
 
 pdfile.TXT deletes persons 1 and 4 out of the 12 demo persons (entry 7 has no
 responses at all).  With those deletes the person table carries 6 kept rows,
@@ -28,6 +29,16 @@ DEMO_CON = os.path.join(DEMO_DIR, "demo.CON")
 DEMO_DATA = os.path.join(DEMO_DIR, "demo_data.prn")
 DEMO_PDFILE = os.path.join(DEMO_DIR, "pdfile.TXT")
 DEMO_ROSTER = os.path.join(DEMO_DIR, "roster.csv")
+
+pytestmark = pytest.mark.skipif(
+    not os.path.isdir(DEMO_DIR),
+    reason=(
+        f"external reference fixture missing: {DEMO_DIR} "
+        "(needs demo.CON, demo_data.prn, pdfile.TXT, roster.csv). "
+        "These tests audit the reference tool's item-delete contract and are skipped, not passed, "
+        "until those files are placed there."
+    ),
+)
 
 STATUS_VOCAB = {"kept", "deleted", "extreme_max", "extreme_min", "lacking"}
 
