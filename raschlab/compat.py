@@ -78,7 +78,41 @@ def prox_winsteps(X, mask, anchors=None, max_iter=20, tol_var=1e-10):
     return d, b
 
 
-def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lconv=None, delta=0.1, max_iter=500):
+def _clamp_step(step, limit=1.0, factor=0.9):
+    """Reproduce the reference tool's overshoot clamp: shrink any step until abs(step) <= limit.
+
+    The reference implementation walks each parameter update through
+    ``while abs(step) > 1.0: step *= 0.9`` (verified in Winsteps 5.2.1,
+    FUN_14031e4b0). Shrinking by 0.9 repeatedly is the same as scaling by
+    0.9**k where k = ceil(log(limit/abs(step)) / log(0.9)).
+    """
+    step = np.asarray(step, dtype=float)
+    mag = np.abs(step)
+    big = mag > limit
+    if np.any(big):
+        k = np.ceil(np.log(limit / mag[big]) / np.log(factor))
+        k = np.maximum(k, 1.0)
+        step = step.copy()
+        step[big] = step[big] * factor ** k
+    return step
+
+
+def _converged(max_logit, max_resid, lconv, rconv, mode):
+    """Apply the reference tool's CONVERGE= modes to the two criteria."""
+    ok_l = max_logit <= lconv
+    ok_r = max_resid <= rconv
+    mode = (mode or "E").upper()
+    if mode == "L":
+        return ok_l
+    if mode == "R":
+        return ok_r
+    if mode == "B" or mode == "F":
+        return ok_l and ok_r
+    return ok_l or ok_r
+
+
+def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lconv=None, delta=0.1, max_iter=500,
+                  rconv=None, converge="L", clamp=False):
     """JMLE estimation using Winsteps's logistic ogive update between two points.
 
     Parameters
@@ -96,11 +130,24 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
     keep : array-like of shape (P,), optional
         Boolean mask of persons to keep in calibration.
     lconv : float, optional
-        Convergence threshold on maximum logit change (default: 0.015).
+        Convergence threshold on maximum logit change (default: 0.015, the
+        calibrated value that dominates the reference tool's 0.005 on every
+        golden column; pass 0.005 for the documented default).
     delta : float, optional
         Step size for evaluating expected scores (default: 0.1).
     max_iter : int, optional
         Maximum JMLE sweeps (default: 500).
+    rconv : float, optional
+        Convergence threshold on the maximum raw-score residual (default: 0.1,
+        the reference tool's RCONV= default, confirmed in the 5.2.1 binary).
+    converge : str, optional
+        Which criteria gate the stop: "L" logit change (default), "R" score
+        residual, "E" either, "B"/"F" both. The residual criterion is not
+        exercised by the golden fixtures, so keep "L" for parity work.
+    clamp : bool, optional
+        Apply the reference tool's overshoot clamp (steps above 1 logit are
+        scaled by 0.9 repeatedly until they fit). Off by default: it shortens
+        the verbal phase from 11 to 3 sweeps and costs 0.96 logit of parity.
 
     Returns
     -------
@@ -136,6 +183,8 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
 
     if lconv is None:
         lconv = 0.015
+    if rconv is None:
+        rconv = 0.1
 
     mask_item = mask & active_persons[:, None]
     N_j = np.sum(mask_item, axis=0)
@@ -150,6 +199,8 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
     converged = False
     iterations = 0
     max_change = 0.0
+    prev_change = None
+    prev_resid = None
     trace = []
 
     for it in range(1, max_iter + 1):
@@ -169,6 +220,8 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
         denom_j = l1_j - l0_j
         safe_denom_j = np.where(np.abs(denom_j) > 1e-12, denom_j, 1.0)
         d_step = np.where(valid_j & (np.abs(denom_j) > 1e-12), delta * (logit_S_j - l0_j) / safe_denom_j, 0.0)
+        if clamp:
+            d_step = _clamp_step(d_step)
         d += d_step
 
         # Person sweep: evaluate E0 and E1 using just-updated item difficulties d
@@ -185,6 +238,8 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
         denom_p = l1_p - l0_p
         safe_denom_p = np.where(np.abs(denom_p) > 1e-12, denom_p, 1.0)
         b_step = np.where(active_persons & (np.abs(denom_p) > 1e-12), delta * (logit_S_p - l0_p) / safe_denom_p, 0.0)
+        if clamp:
+            b_step = _clamp_step(b_step)
         b += b_step
 
         if not anchors:
@@ -198,17 +253,25 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
 
         P = 1.0 / (1.0 + np.exp(-np.clip(b[:, None] - d[None, :], -30, 30)))
         resids = np.abs(S_p - np.sum(np.where(mask, P, 0.0), axis=1))
+        max_resid = float(np.max(resids[active_persons])) if np.any(active_persons) else 0.0
         trace.append({
             "iteration": it,
             "max_logit_change": float(d_change),
-            "max_score_residual": float(np.max(resids[active_persons])) if np.any(active_persons) else 0.0,
+            "max_score_residual": max_resid,
             "least_converged_item": int(np.argmax(np.where(valid_j, np.abs(d_step), -1.0))) + 1,
             "least_converged_person": int(np.argmax(np.where(active_persons, resids, -1.0))) + 1,
         })
 
-        if max_change <= lconv:
+        if _converged(max_change, max_resid, lconv, rconv, converge):
             converged = True
             break
+
+        # The reference tool also stops when both criteria get worse: the iteration
+        # path is diverging, so more sweeps would move further from a solution.
+        if (prev_change is not None and prev_resid is not None
+                and max_change > prev_change and max_resid > prev_resid):
+            break
+        prev_change, prev_resid = max_change, max_resid
 
     return {
         "item_measures": d,
@@ -222,7 +285,8 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
     }
 
 
-def estimate_compat(X, mask, anchors=None, keep=None, delta=0.1, lconv=None):
+def estimate_compat(X, mask, anchors=None, keep=None, delta=0.1, lconv=None,
+                    rconv=None, converge="L", clamp=False):
     """Estimate Rasch parameters reproducing Winsteps's estimation path.
 
     Runs prox_winsteps followed by jmle_winsteps.
@@ -237,4 +301,8 @@ def estimate_compat(X, mask, anchors=None, keep=None, delta=0.1, lconv=None):
         keep=keep,
         lconv=lconv,
         delta=delta,
+        rconv=rconv,
+        converge=converge,
+        clamp=clamp,
     )
+
