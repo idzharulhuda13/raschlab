@@ -28,6 +28,11 @@ class TestEstimateReal(unittest.TestCase):
         golden_json_path = os.environ.get(
             "RASCHLAB_WINSTEPS_JSON", "/tmp/winsteps_items_kuantitatif.json"
         )
+        if not os.path.exists(golden_json_path):
+            self.skipTest(
+                "reference item table absent (set RASCHLAB_WINSTEPS_JSON); it is derived "
+                "from a client dataset and is not distributed"
+            )
 
         con = parse_control(con_path)
         item1 = con.get("ITEM1") or con.get("item1")

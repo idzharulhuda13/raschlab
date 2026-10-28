@@ -79,7 +79,7 @@ Not verified against the reference tool: no vendor run in this project carries
 - **Model**: Dichotomous Rasch model (`Model="R"`).
 - **Scale**: `UMEAN=0.0`, `USCALE=1.0`. In unanchored runs, item difficulties are centered to mean 0. In anchored runs, anchor values determine the origin of the scale.
 - **Convergence**:
-  - `compat` mode: Follows Winsteps's logistic ogive update between two points (`delta=0.1`) initialized with Cohen's PROX (`max_iter=20`, `tol_var=1e-10`). Uses calibrated `LCONV=0.015` on maximum logit change by default (calibrated against the six reference runs because our iteration path differs from Winsteps's). This threshold can be overridden via `--lconv FLOAT`.
+  - `compat` mode: Follows Winsteps's logistic ogive update between two points (`delta=0.1`) initialized with Cohen's PROX (`max_iter=20`, `tol_var=1e-10`). Uses calibrated `LCONV=0.015` on maximum logit change by default (calibrated against the six reference runs because our iteration path differs from Winsteps's). This threshold can be overridden via `--lconv FLOAT`. The reference's other stop controls live in the Python API (`estimate_compat`) only — there are no CLI flags for them yet — and are off by default: `rconv` (raw-score residual, 0.1), `converge` (`"L"`, `"R"`, `"E"`, `"B"`, `"F"`), `clamp` (the 0.9 overshoot clamp above 1 logit), and `prox_stop` (`"variance"`, or `"spread"` for the reference's documented PROX rule). See `docs/winsteps-521-review.md` for what each one does and why the defaults stay where they are.
   - `exact` mode: Standard PROX starting values followed by Newton-Raphson JMLE until convergence.
 - **Person Classification**:
   - `lacking`: Persons with 0 valid responses (`COUNT == 0`).

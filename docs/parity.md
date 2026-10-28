@@ -41,9 +41,9 @@ which hides excluded persons entirely; every parity claim above is scoped to the
 | Item | Reference | raschlab | Status | Evidence |
 |---|---|---|---|---|
 | Start values | PROX (Cohen normal approximation, missing-data variant) | same formula | identical | docs `iterations.htm`; `compat.py::prox_winsteps` |
-| PROX stop | growth of **both** the top5−bottom5 person range and item range < **0.5 logits** | runs to variance convergence (`tol_var=1e-10`) | **deliberate** | the reference rule reproduces the phase lengths 3/6/3/3/3/4 exactly (`test_golden_convergence.py`); adopting it makes pemecahan worse (0.084 → 0.328 at iteration 2) |
-| JMLE update | "logistic ogive between two points", one parameter at a time | emulated | **deliberate** | different path: dominant item ours #36/#40/#137/#96 vs theirs #108/#109/#84/#23; change decay ≈0.7×/iter vs ≈0.93×/iter |
-| JMLE stop | `LCONV=.005` **or** `RCONV=0.1` (`CONVERGE=E`), both maxima taken over persons **and** items | calibrated `--lconv 0.015` on the max logit change | **deliberate** | adopting `LCONV=.005` makes penalaran 9× worse (mean item-measure difference 0.0075 → 0.065 logit) |
+| PROX stop | growth of **both** the top5−bottom5 person range and item range < **0.5 logits**, minimum 2 iterations | runs to variance convergence (`tol_var=1e-10`) | **deliberate** | implementing the documented rule reproduces the reference's phase length on 3 of 6 runs (ours 2/3/3/3/3/3 vs theirs 3/3/4/3/3/6; a tuned 0.1 gets 5 of 6, but it is tuned) and lands 0.0533 logit from the reference tables against 0.0314 for the variance rule — `docs/winsteps-521-review.md` §4 and §7, `test_golden_prox_phase.py` |
+| JMLE update | "logistic ogive between two points", one parameter at a time, with a 0.9 step clamp above 1 logit | emulated, no clamp | **deliberate** | path differs: dominant item ours #36/#40/#137/#96 vs theirs #108/#109/#84/#23; the ≈0.93×/iter decay seen from outside is the reference's `while abs(step) > 1.0: step *= 0.9`, not damping — see `docs/winsteps-521-review.md` §3 |
+| JMLE stop | `LCONV=.005` (logit change) or `RCONV=.1` (raw-score residual), selected by `CONVERGE=`, both maxima over persons **and** items, plus a divergence exit | calibrated `--lconv 0.015` on the max logit change | **deliberate** | thresholds and selector confirmed in the 5.2.1 binary (`FUN_14031e4b0`) and by `help/converge.htm`; adopting `LCONV=.005` is 2.4× worse overall and 9× worse on penalaran, and adding the 0.9 clamp costs 0.96 logit on verbal |
 | Item measures | JMLE | same estimator family, calibrated stop | tolerance | correlation ≥0.99991; max difference 0.0314 logit (kuantitatif 0.0226, verbal 0.0285, penalaran 0.0105, pemecahan 0.0251, penalaran_rev 0.0090, pemecahan_rev 0.0314) |
 | Item rank order | - | - | tolerance | max rank displacement 3 positions (kuantitatif), <=2 elsewhere |
 
@@ -51,6 +51,11 @@ Why the two deliberate rows are the right trade-off: README §"Reference converg
 stops mid-iteration on its own criterion and our iteration path is not bit-compatible with theirs, so a
 calibrated stop lands closer to their truncated solution than their own rule does. Making this bit-identical
 means reproducing their update arithmetic -- research, not a constant.
+
+That research is now done as far as static analysis allows: `docs/winsteps-521-review.md` reads both thresholds,
+the criterion selector and the 0.9 step clamp out of the 5.2.1 image and measures what happens when we adopt
+them. The reference computes in **float32** while we accumulate in float64, so the two iteration paths cannot
+coincide exactly no matter which stop rule is used.
 
 **Does the calibrated constant transfer to data it was not tuned on?** Measured by leave-one-run-out: pick the
 threshold that minimises the worst-case mean item-measure deviation over five runs, then score the held-out run
