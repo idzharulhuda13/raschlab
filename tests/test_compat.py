@@ -20,7 +20,7 @@ class TestCompat(unittest.TestCase):
         mask = np.ones((n_persons, n_items), dtype=bool)
 
         # Assert that prox_winsteps alone gives correlation >= 0.9
-        d_prox, b_prox = prox_winsteps(x, mask)
+        d_prox, b_prox, _ = prox_winsteps(x, mask)
         corr_prox = float(np.corrcoef(d_prox, beta)[0, 1])
         self.assertGreaterEqual(corr_prox, 0.9)
 
@@ -44,7 +44,7 @@ class TestCompat(unittest.TestCase):
         # Anchor item 1 (1-based index) to 1.25 and item 10 to -0.85
         anchors = {1: 1.25, 10: -0.85}
 
-        d_prox, _ = prox_winsteps(x, mask, anchors=anchors)
+        d_prox, _, _ = prox_winsteps(x, mask, anchors=anchors)
         self.assertAlmostEqual(float(d_prox[0]), 1.25, places=10)
         self.assertAlmostEqual(float(d_prox[9]), -0.85, places=10)
 
@@ -77,7 +77,7 @@ class TestCompat(unittest.TestCase):
         x = (np.random.rand(n_persons, n_items) < p).astype(float)
         mask = np.ones((n_persons, n_items), dtype=bool)
 
-        d0, b0 = prox_winsteps(x, mask)
+        d0, b0, _ = prox_winsteps(x, mask)
         res = jmle_winsteps(x, mask, d0, b0, converge="R", rconv=-1.0, max_iter=3)
         trace = res["trace"]
         first = trace[0]["max_score_residual"]

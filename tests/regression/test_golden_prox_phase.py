@@ -85,9 +85,7 @@ def load_run(run: str):
 def test_documented_rule_phase_length(run: str) -> None:
     """Recorded state: ours vs the reference's PROX length, so a change in either shows up here."""
     x, mask, anchors, _ = load_run(run)
-    _, _, iterations = cast(tuple, prox_winsteps(
-        x, mask, anchors=anchors, stop="spread", return_iterations=True
-    ))
+    _, _, iterations = prox_winsteps(x, mask, anchors=anchors, stop="spread")
     expected_ours, expected_reference = EXPECTED_PHASE[run]
     assert iterations == expected_ours
     assert len(GOLDEN[run]["prox"]) == expected_reference
@@ -97,9 +95,7 @@ def test_documented_rule_matches_at_least_three_of_six_phase_lengths() -> None:
     hits = 0
     for run in RUNS:
         x, mask, anchors, _ = load_run(run)
-        _, _, iterations = cast(tuple, prox_winsteps(
-            x, mask, anchors=anchors, stop="spread", return_iterations=True
-        ))
+        _, _, iterations = prox_winsteps(x, mask, anchors=anchors, stop="spread")
         hits += int(iterations == len(GOLDEN[run]["prox"]))
     assert hits >= 3
 

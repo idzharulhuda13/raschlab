@@ -166,10 +166,11 @@ residual criterion are what would make `RCONV` bite the way the reference's does
 
 **P1 — close the remaining gaps to the reference — DONE, with two items carried forward**
 
-4. ✅ **Caps implemented; no golden run is bounded by one.** `raschlab.control.iteration_caps()` reads
-   `MJMLE=`/`MUCON=` and `MPROX=` with the reference's semantics (`0` = no maximum, `-1` = skip the phase
-   entirely, absent = engine default). All six golden runs stop on a convergence rule after 8–34 JMLE
-   sweeps, so a cap never binds them, and a cap was never the explanation for a parity gap.
+4. ✅ **Caps: not implemented, deliberately.** None of the six reference control files declares
+   `MJMLE=`/`MUCON=`/`MPROX=` — nor `LCONV`, `RCONV` or `CONVERGE` — and the `0`/`-1` semantics in the
+   help cannot be confirmed from the help alone. Every golden run stops on a convergence rule after
+   8–34 JMLE sweeps, so a cap never binds them: it was never the explanation for a parity gap, and a
+   parser with no caller is dead code. `estimate_compat(max_iter=...)` still lets a caller impose one.
 5. ✅ **The probe step is not the lever.** `delta` from 0.05 to 1.0 × sweep order items-first vs
    persons-first, ten combinations: the iteration-1 residual stays 6.67 in every one, and
    `max_logit_change` moves only between 0.200 and 0.213 against the reference's 0.4598. Measured and

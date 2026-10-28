@@ -22,7 +22,7 @@ def _spread_top_bottom(values, k=5):
 
 
 def prox_winsteps(X, mask, anchors=None, max_iter=20, tol_var=1e-10,
-                  stop="variance", tol_spread=0.5, min_iter=2, return_iterations=False):
+                  stop="variance", tol_spread=0.5, min_iter=2):
     """Cohen's PROX algorithm adapted for missing data following Winsteps documentation.
 
     Parameters
@@ -51,14 +51,10 @@ def prox_winsteps(X, mask, anchors=None, max_iter=20, tol_var=1e-10,
         threshold, not a documented one.
     min_iter : int, optional
         Minimum PROX iterations under the ``"spread"`` rule (default: 2, the reference's floor).
-    return_iterations : bool, optional
-        Return the number of PROX iterations as a third element (default: False).
-
     Returns
     -------
-    tuple of (np.ndarray, np.ndarray)
-        Item difficulties (I,) and person abilities (P,), and with ``return_iterations`` the
-        number of iterations performed.
+    tuple of (np.ndarray, np.ndarray, int)
+        Item difficulties (I,), person abilities (P,), and the number of PROX iterations performed.
     """
     X = np.asarray(X, dtype=float)
     mask = np.asarray(mask, dtype=bool)
@@ -118,7 +114,7 @@ def prox_winsteps(X, mask, anchors=None, max_iter=20, tol_var=1e-10,
                 break
             var_prev = var_curr
 
-    return (d, b, n_iter) if return_iterations else (d, b)
+    return d, b, n_iter
 
 
 def _clamp_step(step, limit=1.0, factor=0.9):
@@ -140,31 +136,43 @@ def _clamp_step(step, limit=1.0, factor=0.9):
     return step
 
 
+CONVERGE_MODES = ("L", "R", "E", "B", "F")
+
+
+def _normalize_converge(mode):
+    """Canonical CONVERGE= selector. An unknown value is an error, never a silent default.
+
+    ``None`` means the documented default, ``"L"``. Falling back to ``"E"`` for anything
+    unrecognised would make a typo relax the gate - the loosest mode - and change the answer
+    without a word.
+    """
+    if mode is None:
+        return "L"
+    key = str(mode).strip().upper()
+    if key not in CONVERGE_MODES:
+        raise ValueError(f"converge= must be one of {', '.join(CONVERGE_MODES)}, got {mode!r}")
+    return key
+
+
 def _converged(max_logit, max_resid, lconv, rconv, mode):
     """Apply the reference tool's CONVERGE= modes to the two criteria."""
+    mode = _normalize_converge(mode)
     ok_l = max_logit <= lconv
     ok_r = max_resid <= rconv
-    mode = (mode or "E").upper()
     if mode == "L":
         return ok_l
     if mode == "R":
         return ok_r
-    if mode == "B" or mode == "F":
+    if mode in ("B", "F"):
         return ok_l and ok_r
     return ok_l or ok_r
 
 
-def _score_residuals(mask, mask_item, S_p, S_j, active_persons, valid_j, d, b):
-    """Raw-score residuals of the state entering a sweep, in raw-score points.
-
-    ``observed - expected`` for every active person (over items) and every free,
-    non-empty item (over active persons). Returns two arrays zeroed outside the
-    active sets, so ``np.argmax`` can be used for the least-converged entries.
-    """
-    P = 1.0 / (1.0 + np.exp(-np.clip(b[:, None] - d[None, :], -30, 30)))
-    r_p = np.where(active_persons, S_p - np.sum(np.where(mask, P, 0.0), axis=1), 0.0)
-    r_j = np.where(valid_j, S_j - np.sum(np.where(mask_item, P, 0.0), axis=0), 0.0)
-    return r_p, r_j
+def _is_diverging(max_change, max_resid, prev_change, prev_resid):
+    """True when both criteria grew: the iteration path is moving away from a solution."""
+    if prev_change is None or prev_resid is None:
+        return False
+    return max_change > prev_change and max_resid > prev_resid
 
 
 def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lconv=None, delta=0.1, max_iter=500,
@@ -266,21 +274,23 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
     for it in range(1, max_iter + 1):
         iterations = it
 
-        # Residual of the state entering this sweep: raw-score points, over both
-        # persons and items. The reference tool numbers its convergence rows the same
-        # way (row 1 = state after PROX). The person side after a person sweep is
-        # ~0 by construction, which is why a person-only metric cannot gate a stop.
-        resid_p, resid_j = _score_residuals(
-            mask, mask_item, S_p, S_j, active_persons, valid_j, d, b
-        )
+        # Expected score of the state entering this sweep. It feeds the residual below and
+        # the item sweep, so it is built once.
+        diff0 = b[:, None] - d[None, :]
+        P0 = 1.0 / (1.0 + np.exp(-np.clip(diff0, -30, 30)))
+
+        # Residual in raw-score points, over both persons and items. The reference tool
+        # numbers its convergence rows the same way (row 1 = state after PROX). The person
+        # side after a person sweep is ~0 by construction, which is why a person-only
+        # metric cannot gate a stop.
+        resid_p = np.where(active_persons, S_p - np.sum(np.where(mask, P0, 0.0), axis=1), 0.0)
+        resid_j = np.where(valid_j, S_j - np.sum(np.where(mask_item, P0, 0.0), axis=0), 0.0)
         max_resid = float(max(
             np.max(np.abs(resid_p)) if np.any(active_persons) else 0.0,
             np.max(np.abs(resid_j)) if np.any(valid_j) else 0.0,
         ))
 
         # Item sweep: evaluate E0 and E1 using current person abilities b
-        diff0 = b[:, None] - d[None, :]
-        P0 = 1.0 / (1.0 + np.exp(-np.clip(diff0, -30, 30)))
         E0_j = np.sum(np.where(mask_item, P0, 0.0), axis=0)
 
         diff1_j = b[:, None] - (d + delta)[None, :]
@@ -325,6 +335,7 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
 
         trace.append({
             "iteration": it,
+            # Item side only; the stop test below uses max_change, which covers persons too.
             "max_logit_change": float(d_change),
             "max_score_residual": max_resid,
             "least_converged_item": int(np.argmax(np.where(valid_j, np.abs(resid_j), -1.0))) + 1,
@@ -338,8 +349,7 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
 
         # The reference tool also stops when both criteria get worse: the iteration
         # path is diverging, so more sweeps would move further from a solution.
-        if (prev_change is not None and prev_resid is not None
-                and max_change > prev_change and max_resid > prev_resid):
+        if _is_diverging(max_change, max_resid, prev_change, prev_resid):
             stop_reason = "diverged"
             break
         prev_change, prev_resid = max_change, max_resid
@@ -369,9 +379,9 @@ def estimate_compat(X, mask, anchors=None, keep=None, delta=0.1, lconv=None,
     reproduces the reference's PROX phase lengths more often but lands further from its final item
     measures, so it stays opt-in.
     """
-    prox_out = prox_winsteps(X, mask, anchors=anchors, stop=prox_stop,
-                             tol_spread=prox_tol_spread)
-    d_start, b_start = prox_out[0], prox_out[1]
+    d_start, b_start, _ = prox_winsteps(
+        X, mask, anchors=anchors, stop=prox_stop, tol_spread=prox_tol_spread
+    )
     return jmle_winsteps(
         X,
         mask,

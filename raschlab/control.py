@@ -51,39 +51,3 @@ def parse_control(path: str) -> dict:
             result[key] = val
 
     return result
-
-
-def iteration_caps(control: dict) -> dict:
-    """Iteration caps declared by a control file, with the reference's semantics.
-
-    ``MJMLE=`` (alias ``MUCON=``) caps JMLE iterations and ``MPROX=`` caps PROX iterations. The
-    values are not plain limits: ``0`` means "no maximum", and ``-1`` means "run no iterations of
-    this phase at all" (the reference also skips PROX when items or persons are anchored). A
-    directive that is absent leaves the engine default in place, which is what every golden run in
-    this repository does — none of them is bounded by a cap, they all stop on a convergence rule
-    (8 to 34 JMLE iterations against a cap of 200 or more).
-
-    Returns
-    -------
-    dict
-        ``{"jmle": {...}, "prox": {...}}``, each entry
-        ``{"specified": bool, "cap": int|None, "unlimited": bool, "skip": bool}``.
-    """
-
-    def read(*names):
-        for name in names:
-            if name in control:
-                raw = control[name]
-                try:
-                    value = int(float(str(raw).strip()))
-                except ValueError:
-                    raise ValueError(f"{name}= must be an integer, got {raw!r}") from None
-                return {
-                    "specified": True,
-                    "cap": value if value > 0 else None,
-                    "unlimited": value == 0,
-                    "skip": value < 0,
-                }
-        return {"specified": False, "cap": None, "unlimited": False, "skip": False}
-
-    return {"jmle": read("MJMLE", "MUCON"), "prox": read("MPROX")}
