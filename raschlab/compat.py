@@ -6,7 +6,23 @@ def _logit(p):
     return np.log(p / (1.0 - p))
 
 
-def prox_winsteps(X, mask, anchors=None, max_iter=20, tol_var=1e-10):
+def _spread_top_bottom(values, k=5):
+    """Logit distance between the top k and the bottom k entries (the reference's "spread").
+
+    The reference defines its PROX stop on this quantity, not on a variance: "the spread of the
+    persons and items no longer increases noticeably (0.5 logits). The spread is the logit distance
+    between the top 5 and the bottom 5 persons or items."
+    """
+    values = np.sort(np.asarray(values, dtype=float))
+    if values.size == 0:
+        return 0.0
+    if values.size < 2 * k:
+        return float(values[-1] - values[0])
+    return float(np.mean(values[-k:]) - np.mean(values[:k]))
+
+
+def prox_winsteps(X, mask, anchors=None, max_iter=20, tol_var=1e-10,
+                  stop="variance", tol_spread=0.5, min_iter=2, return_iterations=False):
     """Cohen's PROX algorithm adapted for missing data following Winsteps documentation.
 
     Parameters
@@ -21,11 +37,28 @@ def prox_winsteps(X, mask, anchors=None, max_iter=20, tol_var=1e-10):
         Maximum PROX iterations (default: 20).
     tol_var : float, optional
         Relative variance tolerance to cease iterations (default: 1e-10).
+    stop : {"variance", "spread"}, optional
+        Cease rule. ``"variance"`` (default) stops when the item-difficulty variance no longer
+        grows. ``"spread"`` implements the reference's documented rule: stop once the top-5 minus
+        bottom-5 spread of both item difficulties and person abilities grows by less than
+        ``tol_spread`` logits, never before ``min_iter`` iterations. Applied faithfully
+        (``tol_spread=0.5``) it reproduces the reference's phase length on three of the six golden
+        runs, and it lands further from the reference's final item measures than the variance rule
+        does (worst 0.0533 vs 0.0314 logit), which is why it is not the default.
+    tol_spread : float, optional
+        Spread growth, in logits, below which the ``"spread"`` rule stops (default: 0.5, the value
+        the reference's help states). 0.1 reproduces five of the six phase lengths but is a tuned
+        threshold, not a documented one.
+    min_iter : int, optional
+        Minimum PROX iterations under the ``"spread"`` rule (default: 2, the reference's floor).
+    return_iterations : bool, optional
+        Return the number of PROX iterations as a third element (default: False).
 
     Returns
     -------
     tuple of (np.ndarray, np.ndarray)
-        Item difficulties (I,) and person abilities (P,).
+        Item difficulties (I,) and person abilities (P,), and with ``return_iterations`` the
+        number of iterations performed.
     """
     X = np.asarray(X, dtype=float)
     mask = np.asarray(mask, dtype=bool)
@@ -55,7 +88,10 @@ def prox_winsteps(X, mask, anchors=None, max_iter=20, tol_var=1e-10):
     logit_j = np.log(np.clip(r_j, 1e-12, 1e12))
 
     var_prev = 0.0
+    spread_prev = None
+    n_iter = 0
     for it in range(max_iter):
+        n_iter = it + 1
         d_masked = np.where(mask, d[None, :], 0.0)
         mean_d = np.sum(d_masked, axis=1) / np.maximum(counts_p, 1)
         var_d = np.sum(np.where(mask, (d[None, :] - mean_d[:, None]) ** 2, 0.0), axis=1) / np.maximum(counts_p, 1)
@@ -70,12 +106,19 @@ def prox_winsteps(X, mask, anchors=None, max_iter=20, tol_var=1e-10):
         if not anchors:
             d -= np.mean(d)
 
-        var_curr = float(np.var(d))
-        if it > 0 and (var_curr - var_prev) <= tol_var * max(var_prev, 1e-12):
-            break
-        var_prev = var_curr
+        if stop == "spread":
+            spread_curr = (_spread_top_bottom(d[has_valid_items]), _spread_top_bottom(b[non_extreme]))
+            if spread_prev is not None and (it + 1) >= min_iter:
+                if (spread_curr[0] - spread_prev[0]) < tol_spread and (spread_curr[1] - spread_prev[1]) < tol_spread:
+                    break
+            spread_prev = spread_curr
+        else:
+            var_curr = float(np.var(d))
+            if it > 0 and (var_curr - var_prev) <= tol_var * max(var_prev, 1e-12):
+                break
+            var_prev = var_curr
 
-    return d, b
+    return (d, b, n_iter) if return_iterations else (d, b)
 
 
 def _clamp_step(step, limit=1.0, factor=0.9):
@@ -213,6 +256,7 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
     logit_S_p = _logit(S_p / np.maximum(N_p, 1))
 
     converged = False
+    stop_reason = "max_iter"
     iterations = 0
     max_change = 0.0
     prev_change = None
@@ -289,12 +333,14 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
 
         if _converged(max_change, max_resid, lconv, rconv, converge):
             converged = True
+            stop_reason = "converged"
             break
 
         # The reference tool also stops when both criteria get worse: the iteration
         # path is diverging, so more sweeps would move further from a solution.
         if (prev_change is not None and prev_resid is not None
                 and max_change > prev_change and max_resid > prev_resid):
+            stop_reason = "diverged"
             break
         prev_change, prev_resid = max_change, max_resid
 
@@ -306,17 +352,26 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
         "is_extreme_min": is_extreme_min,
         "is_extreme_max": is_extreme_max,
         "converged": converged,
+        "stop_reason": stop_reason,
         "trace": trace,
     }
 
 
 def estimate_compat(X, mask, anchors=None, keep=None, delta=0.1, lconv=None,
-                    rconv=None, converge="L", clamp=False, max_iter=500):
+                    rconv=None, converge="L", clamp=False, max_iter=500,
+                    prox_stop="variance", prox_tol_spread=0.5):
     """Estimate Rasch parameters reproducing Winsteps's estimation path.
 
     Runs prox_winsteps followed by jmle_winsteps.
+
+    ``prox_stop`` selects how the PROX start is terminated: ``"variance"`` (default, the shipped
+    behaviour) or ``"spread"``, the reference's documented top-5/bottom-5 rule. The spread rule
+    reproduces the reference's PROX phase lengths more often but lands further from its final item
+    measures, so it stays opt-in.
     """
-    d_start, b_start = prox_winsteps(X, mask, anchors=anchors)
+    prox_out = prox_winsteps(X, mask, anchors=anchors, stop=prox_stop,
+                             tol_spread=prox_tol_spread)
+    d_start, b_start = prox_out[0], prox_out[1]
     return jmle_winsteps(
         X,
         mask,

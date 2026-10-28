@@ -69,8 +69,11 @@ So the per-iteration decay observed from the outside (~0.93×) is not a fixed da
 update expression (`local_1e0 = 0.7`, plus `±0.7 ×` for the extreme-score adjustment), which is why an
 earlier reading of "0.7 vs 0.93" looked like a damping mismatch.
 
-The size of the "a little bit" probe step is **not yet identified** in the binary; `compat.py` uses
-`delta=0.1`. Locating it is the one remaining unknown on the update arithmetic.
+The size of the "a little bit" probe step is **not identified** in the binary, but it is no longer an
+open question in practice: sweeping it from 0.05 to 1.0 (with both sweep orders) moves the iteration-1
+residual not at all and the logit change only between 0.200 and 0.213, against the reference's 0.4598.
+Whatever their value is, it is not what separates our iteration path from theirs. `compat.py` keeps
+`delta=0.1`.
 
 ## 4. Does adopting the reference rules improve parity? No.
 
@@ -158,22 +161,40 @@ runs without the withheld fixtures), `…::test_defaults_frozen` (the shipped st
    (`pemecahan_rev`), and the whole six-run row is unchanged; guarded by
    `tests/regression/test_golden_items_frozen.py`.
 
-Note for P1: the residual without a criterion change is dead weight, so the divergence branch (7) and the
-probe step (5) are what would make `RCONV` bite the way the reference's does.
+Note for P1: the residual without a criterion change is dead weight, so the divergence branch and the
+residual criterion are what would make `RCONV` bite the way the reference's does.
 
-**P1 — close the remaining gaps to the reference**
+**P1 — close the remaining gaps to the reference — DONE, with two items carried forward**
 
-4. Implement `MUCON`/`MJMLE` and `MPROX` caps as real stop conditions, and check whether any golden run
-   is actually bounded by a cap rather than by a threshold.
-5. Identify the probe step ("a little bit") in the binary; `delta=0.1` is unverified. Candidate sites are
-   the sweep function `FUN_14033c180` and the callers of the LCONV comparison in `FUN_14031e4b0`.
-6. Determine the sweep order per iteration (items-then-persons as we do, or persons-then-items). Our first
-   iteration reports 0.20 logit of change where the reference reports 0.46, which is consistent with an
-   order difference, not with a threshold difference.
-7. Implement the divergence branch (both criteria growing ⇒ stop) and confirm it never fires on the six
-   golden runs.
-8. Re-test the 0.9 clamp only after 5 and 6 land: the earlier collapse on `verbal` may be a downstream
-   symptom of the wrong probe step rather than a property of the clamp.
+4. ✅ **Caps implemented; no golden run is bounded by one.** `raschlab.control.iteration_caps()` reads
+   `MJMLE=`/`MUCON=` and `MPROX=` with the reference's semantics (`0` = no maximum, `-1` = skip the phase
+   entirely, absent = engine default). All six golden runs stop on a convergence rule after 8–34 JMLE
+   sweeps, so a cap never binds them, and a cap was never the explanation for a parity gap.
+5. ✅ **The probe step is not the lever.** `delta` from 0.05 to 1.0 × sweep order items-first vs
+   persons-first, ten combinations: the iteration-1 residual stays 6.67 in every one, and
+   `max_logit_change` moves only between 0.200 and 0.213 against the reference's 0.4598. Measured and
+   eliminated rather than left as an unknown.
+6. ✅ **Sweep order is not the lever either**, same grid. What remains is the starting state and the step
+   estimator, not the order of the two sweeps.
+7. ✅ **Divergence exit confirmed.** Implemented (both criteria growing ⇒ stop), reports
+   `stop_reason="diverged"` when it fires, and never fires on the six golden runs — asserted per run.
+8. ✅ **The clamp re-tested on the six runs.** With the shipped thresholds it changes nothing except
+   `verbal`, where it costs 0.0158 logit (0.0285 → 0.0443). It stays opt-in: there is no run where it helps.
+   The documented PROX stop rule was tested the same way — implemented as `stop="spread"` (top-5 minus
+   bottom-5 spread, growth below 0.5 logits, minimum two iterations). Faithful thresholds reproduce the
+   reference's PROX length on 3 of 6 runs, a tuned 0.1 reproduces 5 of 6, and the final item measures get
+   *further* from the reference either way (worst 0.0533 vs 0.0314). Opt-in, default unchanged.
+
+Carried forward:
+
+- [ ] **PROX update formula.** We still need 20 PROX iterations on `kuantitatif` where the reference stops
+  at 3, so the state JMLE inherits is more converged than theirs. That is the one difference the evidence
+  above still supports for the iteration-1 residual (6.67 vs 6.27) and for the least-converged entries.
+  Aligning it means matching their per-iteration dampening, not their stop rule.
+- [ ] **Trace-level parity is not the goal.** With float32 arithmetic on their side and a different step
+  estimator, reproducing the row-by-row trace would cost more than it buys: the quantity that matters —
+  item measures against the reference table — is already at 0.0314 worst with the shipped defaults, better
+  than a faithful implementation of their documented rules (0.0533).
 
 **P2 — documentation and hygiene**
 
