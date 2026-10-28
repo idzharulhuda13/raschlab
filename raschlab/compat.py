@@ -111,6 +111,19 @@ def _converged(max_logit, max_resid, lconv, rconv, mode):
     return ok_l or ok_r
 
 
+def _score_residuals(mask, mask_item, S_p, S_j, active_persons, valid_j, d, b):
+    """Raw-score residuals of the state entering a sweep, in raw-score points.
+
+    ``observed - expected`` for every active person (over items) and every free,
+    non-empty item (over active persons). Returns two arrays zeroed outside the
+    active sets, so ``np.argmax`` can be used for the least-converged entries.
+    """
+    P = 1.0 / (1.0 + np.exp(-np.clip(b[:, None] - d[None, :], -30, 30)))
+    r_p = np.where(active_persons, S_p - np.sum(np.where(mask, P, 0.0), axis=1), 0.0)
+    r_j = np.where(valid_j, S_j - np.sum(np.where(mask_item, P, 0.0), axis=0), 0.0)
+    return r_p, r_j
+
+
 def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lconv=None, delta=0.1, max_iter=500,
                   rconv=None, converge="L", clamp=False):
     """JMLE estimation using Winsteps's logistic ogive update between two points.
@@ -140,10 +153,13 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
     rconv : float, optional
         Convergence threshold on the maximum raw-score residual (default: 0.1,
         the reference tool's RCONV= default, confirmed in the 5.2.1 binary).
+        The residual is the raw-score residual of the state entering the sweep,
+        over persons and items; RCONV=0.1 therefore cannot bind before the
+        iteration path has collapsed.
     converge : str, optional
         Which criteria gate the stop: "L" logit change (default), "R" score
-        residual, "E" either, "B"/"F" both. The residual criterion is not
-        exercised by the golden fixtures, so keep "L" for parity work.
+        residual, "E" either, "B"/"F" both. The criterion now measured is valid
+        but has no golden stop of its own; defaults stay "L".
     clamp : bool, optional
         Apply the reference tool's overshoot clamp (steps above 1 logit are
         scaled by 0.9 repeatedly until they fit). Off by default: it shortens
@@ -206,6 +222,18 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
     for it in range(1, max_iter + 1):
         iterations = it
 
+        # Residual of the state entering this sweep: raw-score points, over both
+        # persons and items. The reference tool numbers its convergence rows the same
+        # way (row 1 = state after PROX). The person side after a person sweep is
+        # ~0 by construction, which is why a person-only metric cannot gate a stop.
+        resid_p, resid_j = _score_residuals(
+            mask, mask_item, S_p, S_j, active_persons, valid_j, d, b
+        )
+        max_resid = float(max(
+            np.max(np.abs(resid_p)) if np.any(active_persons) else 0.0,
+            np.max(np.abs(resid_j)) if np.any(valid_j) else 0.0,
+        ))
+
         # Item sweep: evaluate E0 and E1 using current person abilities b
         diff0 = b[:, None] - d[None, :]
         P0 = 1.0 / (1.0 + np.exp(-np.clip(diff0, -30, 30)))
@@ -251,15 +279,12 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
         b_change = np.max(np.abs(b_step[active_persons])) if np.any(active_persons) else 0.0
         max_change = float(max(d_change, b_change))
 
-        P = 1.0 / (1.0 + np.exp(-np.clip(b[:, None] - d[None, :], -30, 30)))
-        resids = np.abs(S_p - np.sum(np.where(mask, P, 0.0), axis=1))
-        max_resid = float(np.max(resids[active_persons])) if np.any(active_persons) else 0.0
         trace.append({
             "iteration": it,
             "max_logit_change": float(d_change),
             "max_score_residual": max_resid,
-            "least_converged_item": int(np.argmax(np.where(valid_j, np.abs(d_step), -1.0))) + 1,
-            "least_converged_person": int(np.argmax(np.where(active_persons, resids, -1.0))) + 1,
+            "least_converged_item": int(np.argmax(np.where(valid_j, np.abs(resid_j), -1.0))) + 1,
+            "least_converged_person": int(np.argmax(np.where(active_persons, np.abs(resid_p), -1.0))) + 1,
         })
 
         if _converged(max_change, max_resid, lconv, rconv, converge):
@@ -286,7 +311,7 @@ def jmle_winsteps(X, mask, item_start, person_start, anchors=None, keep=None, lc
 
 
 def estimate_compat(X, mask, anchors=None, keep=None, delta=0.1, lconv=None,
-                    rconv=None, converge="L", clamp=False):
+                    rconv=None, converge="L", clamp=False, max_iter=500):
     """Estimate Rasch parameters reproducing Winsteps's estimation path.
 
     Runs prox_winsteps followed by jmle_winsteps.
@@ -304,5 +329,6 @@ def estimate_compat(X, mask, anchors=None, keep=None, delta=0.1, lconv=None,
         rconv=rconv,
         converge=converge,
         clamp=clamp,
+        max_iter=max_iter,
     )
 

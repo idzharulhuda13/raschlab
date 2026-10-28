@@ -82,22 +82,46 @@ item table (Table 15.1), in logits.
 | calibrated 0.015, no clamp (shipped) | **0.0314** | 0.0212 | **0.0092** | 0.999913 | 51 |
 | `LCONV=0.005`, no clamp | 0.0748 | 0.0437 | 0.0292 | 0.999925 | 80 |
 | `LCONV=0.005` + 0.9 clamp | 0.9877 | 0.2025 | 0.0433 | 0.997078 | 67 |
-| `LCONV=0.005` + `RCONV=0.1`, `CONVERGE=E` | 2.9244 | 0.7206 | 0.1732 | 0.976291 | 6 |
+| `RCONV=0.1`, `CONVERGE=R` | 0.1009 | 0.0541 | 0.0380 | 0.999922 | 109 |
+| `RCONV=0.1` + `LCONV=0.015`, `CONVERGE=E` | 0.0314 | 0.0212 | 0.0092 | 0.999913 | 51 |
+
+The last two rows were re-measured after the §5 fix; the two before them still carry the old metric and are
+kept only as history.
 
 The clamp is not a small perturbation: on `verbal` it cuts the phase from 11 sweeps to 3 and costs
-0.96 logit. `CONVERGE=E` in its current form stops after one sweep because our residual metric does not
-return raw-score units (see §5), so that row is a measurement of the bug, not of the rule.
+0.96 logit. With the residual fixed, `CONVERGE=E` stops at exactly the shipped point (the logit criterion
+always fires first, so the row is byte-identical to the shipped row), and `CONVERGE=R` alone costs twice
+the sweeps and lands *further* from the reference: `RCONV=0.1` is looser than `LCONV=0.015` on this
+iteration path, in raw-score points. That is a property of the two thresholds, not of the metric.
 
 **Conclusion: the calibrated `--lconv 0.015` stays.** The reference's own rules are now understood well
 enough to say why they lose here: the reference truncates its iteration path at a point our path never
 visits, so their stopping point is not our stopping point. Reproducing their arithmetic bit-for-bit
 would require the probe step and the sweep order, not just the thresholds.
 
-## 5. Defect found while measuring
+## 5. Defect found while measuring — and fixed
 
-`jmle_winsteps` reports `max_score_residual = 1.2e-03` at iteration 1, where the reference reports
-6.27. The value it computes is not a raw-score residual, so `CONVERGE=R`, `CONVERGE=E` and any use of
-`RCONV` are untrustworthy today. This is the first item to fix before the new knobs mean anything.
+`jmle_winsteps` used to report `max_score_residual = 1.2e-03` at iteration 1, where the reference reports
+6.27: it measured the person residual **after** the person sweep, which JMLE drives to ~0 by construction,
+so `CONVERGE=R`, `CONVERGE=E` and any use of `RCONV` stopped after one sweep on a meaningless value.
+
+The metric is now `max |observed − expected|` in raw-score points over active persons **and** valid items,
+evaluated on the state **entering** the sweep — the same state the reference numbers its rows from. Measured
+after the fix on `kuantitatif`:
+
+| | ours | reference |
+|---|---|---|
+| iteration 1 residual | 6.6695 | 6.27 |
+| least converged person | 95 | 468 |
+| least converged item | 36 | 108 |
+| residual trace (first 3) | 6.67, 1.23, 0.47 | 6.27, 2.84, 0.76 |
+
+Same order of magnitude, same units; the 6% gap and the different least-converged entries come from the
+starting point and the sweep order (see P1), not from the metric. The sign is reported as an absolute value
+because the reference's sign convention is not aligned with ours.
+
+With that in place `CONVERGE=R`/`E` behave like stop rules instead of collapsing: 8 sweeps on `kuantitatif`,
+9 on `pemecahan_rev`, residual landing on `RCONV=0.1` (§4). They still do not beat the shipped default.
 
 ## 6. What was added in this change
 
@@ -109,18 +133,33 @@ would require the probe step and the sweep order, not just the thresholds.
 
 Defaults are unchanged on purpose: `LCONV=0.015`, logit criterion only, no clamp. Verified after the
 change on `kuantitatif`: 3 sweeps, max absolute deviation 0.0226 logit — identical to the shipped
-number in `docs/parity.md`.
+number in `docs/parity.md`. The full six-run row is also identical to the pre-change one
+(0.0314 / 0.0212 / 0.0092 / 0.999913 / 51 sweeps), which is what `tests/regression/test_golden_items_frozen.py`
+now guards.
+
+The residual fix is behaviour-visible only when the residual criterion is selected, but it is a fix rather
+than a feature: `max_score_residual` is now a raw-score quantity, and `least_converged_person` /
+`least_converged_item` are the entries that actually carry the largest score residual. Three tests hold it:
+`tests/test_compat.py::test_score_residual_is_raw_score_points` (the person-only defect cannot come back,
+runs without the withheld fixtures), `…::test_defaults_frozen` (the shipped stop, frozen), and
+`tests/regression/test_golden_convergence.py::test_kuantitatif_first_residual_is_in_raw_score_points`
+(iteration 1 must sit between 5 and 8.5 raw-score points against the reference's 6.27).
 
 ## 7. TODO — fixes and improvements, in priority order
 
-**P0 — correctness of what we already claim**
+**P0 — correctness of what we already claim — DONE**
 
-1. Fix the residual metric in `jmle_winsteps`: compute `max |observed - expected|` in raw-score points
-   over persons and items, and assert it against the golden trace (iteration 1 must be ~6.3, not 1.2e-3).
-2. With that in place, re-run the `CONVERGE=R` and `CONVERGE=E` variants. The row above is currently
-   invalid and must be replaced, not quoted.
-3. Add a regression test that the shipped defaults are unchanged: `estimate_compat` without arguments
-   must keep reproducing 0.0226 / 0.0314 on `kuantitatif` / `pemecahan_rev`.
+1. ✅ Fixed: `jmle_winsteps` computes `max |observed - expected|` in raw-score points over persons and items,
+   on the state entering the sweep. Iteration 1 on `kuantitatif` now reads 6.6695 against the reference's
+   6.27, and the golden convergence test asserts it.
+2. ✅ Re-run: the `CONVERGE=R` / `E` rows in §4 are the re-measured ones. Neither replaces the shipped
+   default; both now measure the rule instead of the bug.
+3. ✅ `estimate_compat` without arguments still reproduces 0.0226 (`kuantitatif`) and 0.0314
+   (`pemecahan_rev`), and the whole six-run row is unchanged; guarded by
+   `tests/regression/test_golden_items_frozen.py`.
+
+Note for P1: the residual without a criterion change is dead weight, so the divergence branch (7) and the
+probe step (5) are what would make `RCONV` bite the way the reference's does.
 
 **P1 — close the remaining gaps to the reference**
 
